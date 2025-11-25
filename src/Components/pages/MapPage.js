@@ -41,7 +41,7 @@ const MapPage = () => {
       <Navbar />
       <div className="relative h-screen">
         {/* Search Bar */}
-        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 w-11/12 sm:w-10/12 md:w-8/12 bg-black/50 backdrop-blur-md border border-[#4addbf50] rounded-3xl z-20 p-6 flex flex-wrap items-center justify-between gap-4 shadow-[0_0_20px_#4addbf50]">
+        <div className="absolute left-1/2 transform -translate-x-1/2 w-11/12 sm:w-10/12 md:w-8/12 bg-black/50 backdrop-blur-md border border-[#4addbf50] rounded-3xl z-20 p-6 flex flex-wrap items-center justify-between gap-4 shadow-[0_0_20px_#4addbf50]">
           {/* Search Input */}
           <input
             type="text"
@@ -63,11 +63,11 @@ const MapPage = () => {
                       .join(", ")
                   : "Doctor Specialty"}
               </span>
-               <FaChevronDown
-      className={`transform transition-transform duration-300 ${
-        filterDropdown ? "rotate-180" : "rotate-0"
-      }`}
-    />
+              <FaChevronDown
+                className={`transform transition-transform duration-300 ${
+                  filterDropdown ? "rotate-180" : "rotate-0"
+                }`}
+              />
             </button>
             {filterDropdown && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-black/70 backdrop-blur-md border border-[#4addbf50] rounded-xl shadow-[0_0_20px_#4addbf50] z-50">
@@ -125,12 +125,14 @@ const MapPage = () => {
             />
             <Marker
               position={position}
-              icon={new L.Icon({
-                iconUrl:
-                  "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-              })}
+              icon={
+                new L.Icon({
+                  iconUrl:
+                    "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+                  iconSize: [25, 41],
+                  iconAnchor: [12, 41],
+                })
+              }
             >
               <Popup>Welcome to Medlink map!</Popup>
             </Marker>

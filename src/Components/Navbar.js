@@ -1,40 +1,35 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import { MdOutlineAccountCircle } from "react-icons/md";
 import { GiWorld } from "react-icons/gi";
-import { Link } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
+import { CiPhone, CiMail } from "react-icons/ci";
+import { IoLocationOutline } from "react-icons/io5";
 import { FaFacebookF, FaLinkedinIn, FaInstagram } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
-import { IoLocationOutline } from "react-icons/io5";
-import { CiPhone, CiMail } from "react-icons/ci";
-import { motion, AnimatePresence } from "framer-motion";
+import profileImage from "../static/profile.png";
 
 const Navbar = () => {
   const [accountDropdown, setAccountDropdown] = useState(false);
   const [languageDropdown, setLanguageDropdown] = useState(false);
-  const [searchDropdown, setSearchDropdown] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   const accountRef = useRef(null);
   const languageRef = useRef(null);
-  const searchRef = useRef(null);
 
-  const toggleDropdown = (dropdown) => {
-    if (dropdown === "account") {
-      setAccountDropdown(!accountDropdown);
-      setLanguageDropdown(false);
-      setSearchDropdown(false);
-    } else if (dropdown === "language") {
-      setLanguageDropdown(!languageDropdown);
-      setAccountDropdown(false);
-      setSearchDropdown(false);
-    } else if (dropdown === "search") {
-      setSearchDropdown(!searchDropdown);
-      setAccountDropdown(false);
-      setLanguageDropdown(false);
-    }
+  const { user, logout } = useContext(AuthContext);
+
+  const toggleAccountDropdown = () => {
+    setAccountDropdown(!accountDropdown);
+    setLanguageDropdown(false);
   };
 
-  const handleModalToggle = () => setIsModalOpen(!isModalOpen);
+  const toggleLanguageDropdown = () => {
+    setLanguageDropdown(!languageDropdown);
+    setAccountDropdown(false);
+  };
+  useEffect(() => {
+    console.log("Current user:", user);
+  }, [user]);
+  const getAvatar = () => profileImage; // always default
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -43,13 +38,10 @@ const Navbar = () => {
         accountRef.current &&
         !accountRef.current.contains(event.target) &&
         languageRef.current &&
-        !languageRef.current.contains(event.target) &&
-        searchRef.current &&
-        !searchRef.current.contains(event.target)
+        !languageRef.current.contains(event.target)
       ) {
         setAccountDropdown(false);
         setLanguageDropdown(false);
-        setSearchDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -57,33 +49,29 @@ const Navbar = () => {
   }, []);
 
   return (
-    <div className="sticky top-0 z-50 bg-[#0a0f1c]/90 backdrop-blur-xl shadow-lg shadow-cyan-500/10 border-b border-cyan-400/10">
-      {/* Upper Navbar */}
-      <div className="text-sm py-4 pl-40 pr-24 space-x-4 bg-transparent">
+    <div className="sticky top-0 z-50 bg-[#0a0f1c]/90 backdrop-blur-xl shadow-lg border-b border-cyan-400/10">
+      {/* TOP BAR */}
+      <div className="text-sm py-4 pl-40 pr-24">
         <div className="flex justify-between">
           <div className="flex items-center space-x-4 text-gray-300">
-            <div className="flex items-center space-x-2 hover:text-cyan-400 transition-all duration-300">
+            <div className="flex items-center space-x-2 hover:text-cyan-400">
               <CiMail size={22} />
               <span>contact@Medlink.com</span>
             </div>
-            <div className="flex items-center space-x-1 hover:text-cyan-400 transition-all duration-300">
+            <div className="flex items-center space-x-2 hover:text-cyan-400">
               <CiPhone size={22} />
               <span>+123 456 789</span>
             </div>
-            <div className="flex items-center space-x-1 hover:text-cyan-400 transition-all duration-300">
+            <div className="flex items-center space-x-2 hover:text-cyan-400">
               <IoLocationOutline size={22} />
               <span>Tunis, Tunisia</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-4 text-gray-300 pr-8">
+          <div className="flex items-center space-x-4 text-gray-300">
             {[FaFacebookF, FaXTwitter, FaInstagram, FaLinkedinIn].map(
-              (Icon, index) => (
-                <a
-                  key={index}
-                  href="#"
-                  className="hover:text-cyan-400 transform hover:scale-110 transition duration-300"
-                >
+              (Icon, i) => (
+                <a key={i} className="hover:text-cyan-400" href="#!">
                   <Icon size={16} />
                 </a>
               )
@@ -91,101 +79,167 @@ const Navbar = () => {
           </div>
         </div>
       </div>
-      <hr className="border-t border-cyan-700/30" />
 
-      {/* Lower Navbar */}
-      <div className="fixed top-15 left-0 right-0 bg-[#0a0f1c]/95 z-50 shadow-md">
-        <div className="flex justify-between items-center pl-36 pr-32 py-2">
-          {/* Logo Section */}
-          <a href="/" className="flex items-center space-x-2 group">
-            <img
-              src="/logo.png"
-              alt="Medlink Logo"
-              className="h-16 cursor-pointer transform transition-transform group-hover:scale-105 drop-shadow-[0_0_12px_#4addbf70]"
-            />
-            <div>
-              <h1 className="text-cyan-400 text-3xl font-semibold tracking-wide group-hover:text-cyan-300 transition-all">
-                Medlink
-              </h1>
-              <p className="text-gray-400 text-xs">For Better Health</p>
-            </div>
-          </a>
+      <hr className="border-cyan-700/30" />
 
-          {/* Navigation Links */}
-          <div className="flex items-center space-x-10">
-            {[
-              { name: "Home", link: "/" },
-              { name: "Search", link: "/map" },
-              { name: "Contact us", link: "/contact" },
-              { name: "About Medlink", link: "/aboutus" },
-            ].map((item, index) => (
+      {/* LOWER NAV */}
+      <div className="flex justify-between items-center pl-36 pr-32 py-3">
+        <a href="/" className="flex items-center space-x-2">
+          <img
+            src="/logo.png"
+            className="h-16 drop-shadow-[0_0_12px_#4addbf70]"
+            alt="logo"
+          />
+          <div>
+            <h1 className="text-cyan-400 text-3xl font-semibold">Medlink</h1>
+            <p className="text-gray-400 text-xs">For Better Health</p>
+          </div>
+        </a>
+
+        {/* LINKS */}
+        <div className="flex items-center space-x-10">
+          {["Home", "Search", "Contact Us", "About Medlink"].map(
+            (name, idx) => (
               <a
-                key={index}
-                href={item.link}
-                className="text-gray-300 relative group hover:text-cyan-400 transition-all duration-300"
+                key={idx}
+                href={
+                  name === "Home"
+                    ? "/"
+                    : name === "Search"
+                    ? "/map"
+                    : name === "Contact Us"
+                    ? "/contact"
+                    : "/aboutus"
+                }
+                className="text-gray-300 hover:text-cyan-400 relative group"
               >
-                <span>{item.name}</span>
-                <span className="absolute bottom-0 left-1/2 w-0 h-[2px] bg-cyan-400 transition-all duration-300 group-hover:w-full group-hover:left-0"></span>
+                {name}
+                <span className="absolute bottom-0 left-1/2 w-0 h-[2px] bg-cyan-400 transition-all group-hover:w-full group-hover:left-0"></span>
               </a>
-            ))}
+            )
+          )}
 
-            {/* Account Dropdown */}
-            <div className="relative" ref={accountRef}>
-              <button
-                onClick={() => toggleDropdown("account")}
-                className="text-gray-300 hover:text-cyan-400 transition-transform transform hover:scale-110"
-              >
-                <MdOutlineAccountCircle size={26} />
-              </button>
-              <AnimatePresence>
-                {accountDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
-                    className="absolute right-0 w-40 mt-2 bg-[#121826] border border-cyan-400/20 rounded-lg shadow-xl shadow-cyan-400/10 overflow-hidden"
+          {/* ACCOUNT */}
+          <div className="relative" ref={accountRef}>
+            <button onClick={toggleAccountDropdown}>
+              {user ? (
+                <img
+                  src={getAvatar()}
+                  className="h-9 w-9 rounded-full border border-cyan-400/40 shadow"
+                  alt="avatar"
+                />
+              ) : (
+                <MdOutlineAccountCircle size={26} className="text-gray-300" />
+              )}
+            </button>
+
+            <AnimatePresence>
+              {accountDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-0 mt-2 w-48 bg-[#121826] border border-cyan-400/20 rounded-lg shadow-xl z-50 overflow-hidden"
+                >
+                  {user ? (
+                    <>
+                      {[
+                        { label: "Medical History", link: "/medical-history" },
+                        { label: "My Prescriptions", link: "/prescriptions" },
+                        { label: "Upcoming Events", link: "/events" },
+                        { label: "Settings", link: "/settings" },
+                      ].map((item, i) => (
+                        <a
+                          key={i}
+                          href={item.link}
+                          className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
+                        >
+                          {item.label}
+                        </a>
+                      ))}
+                      <button
+                        onClick={() => {
+                          logout();
+                          window.location.href = "/";
+                        }}
+                        className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-500/20 transition"
+                      >
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        href="/signin"
+                        className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
+                      >
+                        Login
+                      </a>
+                      <a
+                        href="/signup"
+                        className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
+                      >
+                        Sign Up
+                      </a>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* LANGUAGE */}
+          {user ? (
+            // 🔔 NOTIFICATION ICON
+            <div className="relative">
+              <button className="text-gray-300 hover:text-cyan-400">
+                <span className="relative">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-7 w-7"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <a
-                      href="/SignIn"
-                      className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition-all duration-200"
-                    >
-                      Login
-                    </a>
-                    <a
-                      href="/SignUp"
-                      className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition-all duration-200"
-                    >
-                      Sign Up
-                    </a>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0"
+                    />
+                  </svg>
 
-            {/* Language Dropdown */}
+                  {/* Red notification badge */}
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-xs text-white px-1.5 rounded-full">
+                    3
+                  </span>
+                </span>
+              </button>
+            </div>
+          ) : (
+            // 🌍 LANGUAGE MENU
             <div className="relative" ref={languageRef}>
               <button
-                onClick={() => toggleDropdown("language")}
-                className="text-gray-300 hover:text-cyan-400 transition-transform transform hover:scale-110"
+                onClick={toggleLanguageDropdown}
+                className="text-gray-300 hover:text-cyan-400"
               >
                 <GiWorld size={24} />
               </button>
+
               <AnimatePresence>
                 {languageDropdown && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.25 }}
-                    className="absolute right-0 w-40 mt-2 bg-[#121826] border border-cyan-400/20 rounded-lg shadow-xl shadow-cyan-400/10 overflow-hidden"
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-40 bg-[#121826] border border-cyan-400/20 rounded-lg shadow-xl z-50 overflow-hidden"
                   >
                     {["English", "Français", "عربى"].map((lang, i) => (
-                      // eslint-disable-next-line jsx-a11y/anchor-is-valid
                       <a
                         key={i}
-                        href="#"
-                        className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition-all duration-200"
+                        className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
                       >
                         {lang}
                       </a>
@@ -194,21 +248,9 @@ const Navbar = () => {
                 )}
               </AnimatePresence>
             </div>
-          </div>
+          )}
         </div>
       </div>
-
-      {/* Modal unchanged, but you can restyle it similarly later */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#111827] text-gray-200 rounded-xl w-96 p-6 shadow-2xl border border-cyan-500/30">
-            {/* form */}
-            <p className="text-center text-cyan-400 font-semibold mb-2">
-              Appointment Form
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
