@@ -8,22 +8,32 @@
   scrollbar-color: #4addbf #f0f0f0; /* Thumb and track colors */
 }
 
-/* Webkit-based browsers (Chrome, Edge, Safari) */
-*::-webkit-scrollbar {
-  width: 10px; /* Scrollbar width */
+/* src/index.css or src/App.css */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-*::-webkit-scrollbar-thumb {
-  background-color: #4addbf; /* Thumb color */
-  border-radius: 10px; /* Rounded corners */
+::-webkit-scrollbar-track {
+  background: transparent;           /* Transparent track */
+  border-radius: 10px;
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background-color: #3c9f99; /* Thumb hover color */
+::-webkit-scrollbar-thumb {
+  background: rgba(74, 221, 191, 0.4);   /* Soft cyan glow */
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
-*::-webkit-scrollbar-track {
-  background-color: #f0f0f0; /* Track color */
+::-webkit-scrollbar-thumb:hover {
+  background: #4addbf;                   /* Full cyan on hover */
+  background-clip: content-box;
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #4addbf transparent;
 }
 
 @layer utilities {
