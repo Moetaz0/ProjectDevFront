@@ -86,7 +86,7 @@ const DoctorDashboard = () => {
                 <input type="text" placeholder="Search Appointment, Patient or etc" className="pl-12 pr-6 py-3 w-96 bg-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4addbf]" />
               </div>
               <button className="relative"><FiBell size={24} /><span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span></button>
-              <span className="text-sm text-gray-600">15 January 2024</span>
+              <span className="text-sm text-gray-600">15 Nov 2025</span>
             </div>
           </div>
         </header>
@@ -160,7 +160,7 @@ const DoctorDashboard = () => {
               </ResponsiveContainer>
               <div className="mt-4 text-center">
                 <p className="text-3xl font-bold">48 Patients</p>
-                <p className="text-gray-600">15 Jan 2024</p>
+                <p className="text-gray-600">15 Nov 2025</p>
               </div>
             </div>
           </div>
