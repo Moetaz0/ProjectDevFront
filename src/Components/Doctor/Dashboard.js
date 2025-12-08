@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { FiMenu, FiX, FiCalendar, FiUsers, FiDollarSign, FiMessageSquare, FiSettings, FiLogOut, FiBell, FiSearch } from "react-icons/fi";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 const DoctorDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -31,46 +32,54 @@ const DoctorDashboard = () => {
 
   const menuItems = [
     { icon: FiCalendar, label: "Overview", active: true },
-    { icon: FiCalendar, label: "Appointments", count: 48 },
-    { icon: FiUsers, label: "My Patients" },
-    { icon: FiDollarSign, label: "Payments" },
-    { icon: FiMessageSquare, label: "Messages", count: 5 },
-    { icon: FiSettings, label: "Settings" },
+    { icon: FiCalendar, label: "Appointments", path:"/DoctorAppointments",count: 48 },
+    { icon: FiUsers, label: "My Patients" ,path: "/DoctorPatients"},
+    { icon: FiMessageSquare, label: "Messages", path: "/DoctorMessages",count: 5 },
+    { icon: FiSettings, label: "Settings", path: "/DoctorSettings"  },
     { icon: FiLogOut, label: "Logout", danger: true },
   ];
+  const navigate = useNavigate();
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* SIDEBAR */}
-      <motion.div initial={{ x: -300 }} animate={{ x: sidebarOpen ? 0 : -300 }} className="fixed lg:relative z-50 w-72 h-full bg-[#0F172A] text-white shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#4addbf] rounded-xl flex items-center justify-center text-2xl font-bold text-black">M</div>
-            <h1 className="text-2xl font-bold">MedLink</h1>
-          </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden"><FiX size={28} /></button>
-        </div>
+ <div className="flex h-screen bg-gray-50">
+{/* SIDEBAR */}
+<motion.div initial={{ x: -300 }} animate={{ x: sidebarOpen ? 0 : -300 }} className="fixed lg:relative z-50 w-72 h-full bg-[#0F172A] text-white shadow-2xl">
+<div className="flex items-center justify-between p-6 border-b border-white/10">
+<div className="flex items-center gap-3">
+<div className="w-12 h-12 bg-[#4addbf] rounded-xl flex items-center justify-center text-2xl font-bold text-black">M</div>
+<h1 className="text-2xl font-bold">MedLink</h1>
+</div>
+<button onClick={() => setSidebarOpen(false)} className="lg:hidden"><FiX size={28} /></button>
+</div>
 
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#4addbf] to-[#39c6a5] rounded-full ring-4 ring-[#4addbf]/30 flex items-center justify-center text-3xl font-bold text-white">H</div>
-            <div>
-              <h3 className="font-semibold text-lg">Dr. Henry</h3>
-              <p className="text-white/60 text-sm">MBBS • FCPS • MD(Medicine)</p>
-            </div>
-          </div>
-        </div>
 
-        <nav className="p-4 space-y-2">
-          {menuItems.map((item, i) => (
-            <button key={i} className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl transition-all ${item.active ? "bg-[#4addbf] text-black font-medium shadow-lg" : "hover:bg-white/10"} ${item.danger ? "text-red-400 hover:bg-red-400/10" : ""}`}>
-              <item.icon size={22} />
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.count && <span className="bg-white/20 px-3 py-1 rounded-full text-sm">{item.count}</span>}
-            </button>
-          ))}
-        </nav>
-      </motion.div>
+<div className="p-6 border-b border-white/10">
+<div className="flex items-center gap-4">
+<div className="w-20 h-20 bg-gradient-to-br from-[#4addbf] to-[#39c6a5] rounded-full ring-4 ring-[#4addbf]/30 flex items-center justify-center text-3xl font-bold text-white">H</div>
+<div>
+<h3 className="font-semibold text-lg">Dr. Henry</h3>
+<p className="text-white/60 text-sm">MBBS • FCPS • MD(Medicine)</p>
+</div>
+</div>
+</div>
+
+
+<nav className="p-4 space-y-2">
+{menuItems.map((item, i) => (
+<button
+key={i}
+onClick={() => !item.danger && item.path && navigate(item.path)}
+className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl transition-all
+${item.active ? "bg-[#4addbf] text-black font-medium shadow-lg" : "hover:bg-white/10"}
+${item.danger ? "text-red-400 hover:bg-red-400/10" : ""}`}
+>
+<item.icon size={22} />
+<span className="flex-1 text-left">{item.label}</span>
+{item.count && <span className="bg-white/20 px-3 py-1 rounded-full text-sm">{item.count}</span>}
+</button>
+))}
+</nav>
+</motion.div>
 
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-auto">

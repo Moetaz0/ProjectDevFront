@@ -20,7 +20,14 @@ import Prescriptions from './Components/Patient/Prescriptions';
 import MedicalHistory from './Components/Patient/MedicalHistory';
 import PrivacyPolicy from "./Components/legal/PrivacyPolicy";
 import MessagePage from "./Components/Patient/Messages";
-import Dashboard from "./Components/Doctor/Dashboard"; // Import Doctor Dashboard
+import Dashboard from "./Components/Doctor/Dashboard";
+import DoctorSettings from "./Components/Doctor/DoctorSettings"; 
+import DoctorMessages from "./Components/Doctor/DoctorMessages"; 
+import DoctorAppointments from "./Components/Doctor/DoctorAppointments"; 
+import DoctorPatients from "./Components/Doctor/DoctorPatients"; 
+
+
+
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +39,8 @@ function App() {
   }, []);
 
   // Hide Chatbot only on /messages page
-  const showChatbot = location.pathname !== "/messages";
+  const showChatbot = location.pathname !== "/messages" && location.pathname !== "/DoctorMessages";
+  
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -58,6 +66,12 @@ function App() {
         <Route path="/medical-history" element={<MedicalHistory />} />
         <Route path="/messages" element={<MessagePage />} />
         <Route path="/dashboard" element={<Dashboard />} />
+         <Route path="/DoctorSettings" element={<DoctorSettings />} />
+        <Route path="/DoctorMessages" element={<DoctorMessages />} />
+        <Route path="/DoctorAppointments" element={<DoctorAppointments/>} />
+        <Route path="/DoctorPatients" element={<DoctorPatients/>} />
+
+
       </Routes>
 
       {/* Chatbot only appears when NOT on /messages */}
