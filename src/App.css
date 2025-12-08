@@ -58,3 +58,14 @@ body::-webkit-scrollbar-thumb:hover {
 body::-webkit-scrollbar-track {
   background-color: #f0f0f0;
 }
+/* Remove native select arrow completely — works on Chrome, Edge, Firefox */
+.custom-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Optional: Hide arrow in Firefox */
+.custom-select::-ms-expand {
+  display: none;
+} 

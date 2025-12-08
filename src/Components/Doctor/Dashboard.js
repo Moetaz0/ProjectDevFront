@@ -32,10 +32,10 @@ const DoctorDashboard = () => {
 
   const menuItems = [
     { icon: FiCalendar, label: "Overview", active: true },
-    { icon: FiCalendar, label: "Appointments", path:"/DoctorAppointments",count: 48 },
-    { icon: FiUsers, label: "My Patients" ,path: "/DoctorPatients"},
-    { icon: FiMessageSquare, label: "Messages", path: "/DoctorMessages",count: 5 },
-    { icon: FiSettings, label: "Settings", path: "/DoctorSettings"  },
+    { icon: FiCalendar, label: "Appointments", path:"/Doctor-Appointments",count: 48 },
+    { icon: FiUsers, label: "My Patients" ,path: "/Doctor-Patients"},
+    { icon: FiMessageSquare, label: "Messages", path: "/Doctor-Messages",count: 5 },
+    { icon: FiSettings, label: "Settings", path: "/Doctor-Settings"  },
     { icon: FiLogOut, label: "Logout", danger: true },
   ];
   const navigate = useNavigate();

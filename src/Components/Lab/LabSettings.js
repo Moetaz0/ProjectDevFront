@@ -1,20 +1,21 @@
-// DoctorSettings.jsx — Fully redesigned to match your Messages style
+// LabSettings.jsx — EXACT same design as your DoctorSettings
 import React from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  User,
-  Lock,
+  Building2,
+  Shield,
   Bell,
+  Lock,
   Save,
   Mail,
   Phone,
-  Stethoscope,
-  Shield,
+  MapPin,
+  FileCheck,
 } from "lucide-react";
 
-const DoctorSettings = () => {
+const LabSettings = () => {
   const navigate = useNavigate();
 
   return (
@@ -24,7 +25,7 @@ const DoctorSettings = () => {
         <div className="flex items-center justify-between px-8 py-6">
           <div className="flex items-center gap-5">
             <button
-              onClick={() => navigate("/doctor-dashboard")}
+              onClick={() => navigate("/lab-dashboard")}
               className="p-3 rounded-full hover:bg-white/10 transition-all"
             >
               <ArrowLeft size={28} />
@@ -44,13 +45,13 @@ const DoctorSettings = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-5xl font-bold mb-3">Account Settings</h2>
+          <h2 className="text-5xl font-bold mb-3">Lab Settings</h2>
           <p className="text-gray-300 text-lg">
-            Manage your profile, security, and preferences
+            Manage your laboratory profile, security, and notification preferences
           </p>
         </motion.div>
 
-        {/* PROFILE INFORMATION */}
+        {/* LAB INFORMATION */}
         <motion.section
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -59,30 +60,30 @@ const DoctorSettings = () => {
         >
           <div className="flex items-center gap-4 mb-10">
             <div className="p-4 rounded-2xl bg-gradient-to-br from-[#4addbf] to-[#67e8f9] shadow-xl">
-              <User size={34} className="text-black" />
+              <Building2 size={34} className="text-black" />
             </div>
-            <h3 className="text-2xl font-bold">Profile Information</h3>
+            <h3 className="text-2xl font-bold">Laboratory Information</h3>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-3">
               <label className="text-gray-300 font-medium flex items-center gap-2">
-                <User size={18} /> Full Name
+                <Building2 size={18} /> Lab Name
               </label>
               <input
                 type="text"
-                defaultValue="Dr. Henry"
+                defaultValue="City Diagnostic Lab"
                 className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 focus:outline-none focus:border-[#4addbf] focus:ring-4 focus:ring-[#4addbf]/30 transition-all"
               />
             </div>
 
             <div className="space-y-3">
               <label className="text-gray-300 font-medium flex items-center gap-2">
-                <Stethoscope size={18} /> Specialty
+                <FileCheck size={18} /> License Number
               </label>
               <input
                 type="text"
-                defaultValue="MBBS • FCPS • MD(Medicine)"
+                defaultValue="TN-LAB-2021-0456"
                 className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 focus:outline-none focus:border-[#4addbf] focus:ring-4 focus:ring-[#4addbf]/30 transition-all"
               />
             </div>
@@ -93,7 +94,7 @@ const DoctorSettings = () => {
               </label>
               <input
                 type="email"
-                defaultValue="henry@example.com"
+                defaultValue="lab@citydiagnostic.com"
                 className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 focus:outline-none focus:border-[#4addbf] focus:ring-4 focus:ring-[#4addbf]/30 transition-all"
               />
             </div>
@@ -104,8 +105,19 @@ const DoctorSettings = () => {
               </label>
               <input
                 type="text"
-                defaultValue="+216 21 345 678"
+                defaultValue="+216 71 234 567"
                 className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 focus:outline-none focus:border-[#4addbf] focus:ring-4 focus:ring-[#4addbf]/30 transition-all"
+              />
+            </div>
+
+            <div className="space-y-3 md:col-span-2">
+              <label className="text-gray-300 font-medium flex items-center gap-2">
+                <MapPin size={18} /> Address
+              </label>
+              <textarea
+                rows={3}
+                defaultValue="123 Medical Street, Downtown Tunis, Tunisia"
+                className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 focus:outline-none focus:border-[#4addbf] focus:ring-4 focus:ring-[#4addbf]/30 transition-all resize-none"
               />
             </div>
           </div>
@@ -170,12 +182,12 @@ const DoctorSettings = () => {
               <input type="checkbox" defaultChecked className="w-7 h-7 accent-[#4addbf] rounded-lg" />
             </label>
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-lg">Appointment Reminders</span>
+              <span className="text-lg">SMS Alerts for Urgent Reports</span>
               <input type="checkbox" defaultChecked className="w-7 h-7 accent-[#4addbf] rounded-lg" />
             </label>
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-lg">New Patient Alerts</span>
-              <input type="checkbox" className="w-7 h-7 accent-[#4addbf] rounded-lg" />
+              <span className="text-lg">Delivery Confirmation Alerts</span>
+              <input type="checkbox" defaultChecked className="w-7 h-7 accent-[#4addbf] rounded-lg" />
             </label>
           </div>
         </motion.section>
@@ -197,4 +209,4 @@ const DoctorSettings = () => {
   );
 };
 
-export default DoctorSettings;
+export default LabSettings;

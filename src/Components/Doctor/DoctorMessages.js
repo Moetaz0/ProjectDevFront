@@ -142,7 +142,7 @@ const DoctorMessages = () => {
         className="w-96 bg-black/40 backdrop-blur-2xl border-r border-white/10 flex flex-col"
       >
         <div className="p-6 border-b border-white/10 flex items-center gap-4">
-          <button onClick={() => navigate("/Dashboard")} className="p-2 hover:bg-white/10 rounded-full transition">
+          <button onClick={() => navigate("/doctor-dashboard")} className="p-2 hover:bg-white/10 rounded-full transition">
             <ArrowLeft size={28} />
           </button>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-[#4addbf] to-[#67e8f9] bg-clip-text text-transparent">

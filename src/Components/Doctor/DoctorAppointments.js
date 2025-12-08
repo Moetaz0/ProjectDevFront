@@ -52,7 +52,7 @@ const DoctorAppointments = () => {
         <div className="flex items-center justify-between px-8 py-6">
           <div className="flex items-center gap-5">
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/doctor-dashboard")}
               className="p-3 rounded-full hover:bg-white/10 transition-all"
             >
               <ArrowLeft size={28} />

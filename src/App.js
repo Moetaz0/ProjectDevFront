@@ -25,7 +25,9 @@ import DoctorSettings from "./Components/Doctor/DoctorSettings";
 import DoctorMessages from "./Components/Doctor/DoctorMessages"; 
 import DoctorAppointments from "./Components/Doctor/DoctorAppointments"; 
 import DoctorPatients from "./Components/Doctor/DoctorPatients"; 
-
+import LabDashboard from "./Components/Lab/LabDashboard"; 
+import LabSettings from "./Components/Lab/LabSettings"; 
+import UploadReport from "./Components/Lab/UploadReport"; 
 
 
 
@@ -65,11 +67,16 @@ function App() {
         <Route path="/prescriptions" element={<Prescriptions />} />
         <Route path="/medical-history" element={<MedicalHistory />} />
         <Route path="/messages" element={<MessagePage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-         <Route path="/DoctorSettings" element={<DoctorSettings />} />
-        <Route path="/DoctorMessages" element={<DoctorMessages />} />
-        <Route path="/DoctorAppointments" element={<DoctorAppointments/>} />
-        <Route path="/DoctorPatients" element={<DoctorPatients/>} />
+        <Route path="/doctor-dashboard" element={<Dashboard />} />
+         <Route path="/Doctor-Settings" element={<DoctorSettings />} />
+        <Route path="/Doctor-Messages" element={<DoctorMessages />} />
+        <Route path="/Doctor-Appointments" element={<DoctorAppointments/>} />
+        <Route path="/Doctor-Patients" element={<DoctorPatients/>} />
+        <Route path="/Lab-Dashboard" element={<LabDashboard/>} />
+        <Route path="/Lab-Settings" element={<LabSettings/>} />
+        <Route path="/Upload-Report" element={<UploadReport/>} />
+
+
 
 
       </Routes>
