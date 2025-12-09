@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { motion } from "framer-motion";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
@@ -6,8 +6,10 @@ import contact from "../../static/contactus.png";
 import { MapContainer, TileLayer } from "react-leaflet";
 import { CiPhone, CiMail } from "react-icons/ci";
 import { IoLocationOutline } from "react-icons/io5";
+import { LanguageContext } from "../../context/LanguageContext";
 
 const ContactUs = () => {
+  const { t } = useContext(LanguageContext);
   return (
     <>
       <Navbar />
@@ -27,10 +29,10 @@ const ContactUs = () => {
         />
         {/* Hero Text */}
         <h1 className="relative text-5xl md:text-6xl font-extrabold text-white drop-shadow-[0_0_10px_#4addbf]">
-          Contact <span className="text-[#4addbf]">Us</span>
+          {t("contact.hero.title")}
         </h1>
         <p className="relative mt-4 text-lg md:text-xl text-white/70 drop-shadow-[0_0_6px_#4addbf] max-w-2xl">
-          Have questions or need help? Reach us with a futuristic touch.
+          {t("contact.hero.subtitle")}
         </p>
       </div>
 
@@ -45,39 +47,39 @@ const ContactUs = () => {
             className="space-y-6"
           >
             <h2 className="text-3xl font-bold text-[#4addbf] mb-6 drop-shadow-[0_0_10px_#4addbf]">
-              Send Us a Message
+              {t("contact.form.title")}
             </h2>
             <form className="space-y-6">
               <div className="relative">
                 <label htmlFor="name" className="block text-white/70 mb-2">
-                  Full Name
+                  {t("contact.form.name")}
                 </label>
                 <input
                   id="name"
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder={t("contact.form.name")}
                   className="w-full bg-white/10 focus:bg-white/20 border border-white/30 rounded-xl px-4 py-2 text-white placeholder-white/60 focus:outline-none focus:border-[#4addbf] transition-all duration-300"
                 />
               </div>
               <div className="relative">
                 <label htmlFor="email" className="block text-white/70 mb-2">
-                  Email Address
+                  {t("contact.form.email")}
                 </label>
                 <input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t("contact.form.email")}
                   className="w-full bg-white/10 focus:bg-white/20 border border-white/30 rounded-xl px-4 py-2 text-white placeholder-white/60 focus:outline-none focus:border-[#4addbf] transition-all duration-300"
                 />
               </div>
               <div className="relative">
                 <label htmlFor="message" className="block text-white/70 mb-2">
-                  Message
+                  {t("contact.form.message")}
                 </label>
                 <textarea
                   id="message"
                   rows="4"
-                  placeholder="Type your message here"
+                  placeholder={t("contact.form.message")}
                   className="w-full bg-white/10 focus:bg-white/20 border border-white/30 rounded-xl px-4 py-2 text-white placeholder-white/60 focus:outline-none focus:border-[#4addbf] transition-all duration-300"
                 ></textarea>
               </div>
@@ -85,7 +87,7 @@ const ContactUs = () => {
                 type="submit"
                 className="bg-[#4addbf] hover:bg-[#39c6a5] px-6 py-2 rounded-xl text-white font-semibold shadow-[0_0_20px_#4addbf50] transition-all duration-300"
               >
-                Send Message
+                {t("contact.form.submit")}
               </button>
             </form>
           </motion.div>
@@ -115,24 +117,21 @@ const ContactUs = () => {
             className="lg:w-1/2 space-y-6"
           >
             <h2 className="text-3xl font-bold text-[#4addbf] drop-shadow-[0_0_10px_#4addbf]">
-              Get in Touch
+              {t("contact.info.title")}
             </h2>
-            <p className="text-white/70">
-              We’re always here to assist you. Reach out via phone, email, or visit
-              our office.
-            </p>
+            <p className="text-white/70">{t("contact.info.desc")}</p>
             <ul className="space-y-4 text-white/80">
               <li className="flex items-center space-x-3">
                 <CiPhone size={24} className="text-[#4addbf]" />
-                <span>(123) 456-7890</span>
+                <span>{t("contact.info.phone")}</span>
               </li>
               <li className="flex items-center space-x-3">
                 <CiMail size={24} className="text-[#4addbf]" />
-                <span>contact@Medlink.com</span>
+                <span>{t("contact.info.email")}</span>
               </li>
               <li className="flex items-center space-x-3">
                 <IoLocationOutline size={24} className="text-[#4addbf]" />
-                <span>123 Health St, City, Country</span>
+                <span>{t("contact.info.location")}</span>
               </li>
             </ul>
           </motion.div>
@@ -145,7 +144,7 @@ const ContactUs = () => {
             className="lg:w-1/2 mt-12 lg:mt-0 relative z-0"
           >
             <h3 className="text-2xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">
-              Our Location
+              {t("contact.map.title")}
             </h3>
             <MapContainer
               center={[51.505, -0.09]}

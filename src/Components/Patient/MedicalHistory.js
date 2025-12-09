@@ -1,8 +1,6 @@
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useMemo, useState } from "react";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
-import { FiSearch, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import {
   ResponsiveContainer,
   BarChart,
@@ -11,295 +9,411 @@ import {
   Tooltip,
   Legend,
   Bar,
+  LineChart,
+  Line,
 } from "recharts";
+import { FiSearch, FiChevronDown } from "react-icons/fi";
 
-// Sample medical history data
-const medicalHistoryData = [
-  { id: 1, date: "2025-10-01", type: "Consultation", status: "done", doctor: "Dr. Smith", notes: "Routine check-up" },
-  { id: 2, date: "2025-09-15", type: "Lab Test", status: "done", doctor: "Dr. Lee", notes: "Blood test" },
-  { id: 3, date: "2025-08-30", type: "Consultation", status: "requested", doctor: "Dr. Khan", notes: "Follow-up appointment" },
-  { id: 4, date: "2025-08-10", type: "Vaccination", status: "done", doctor: "Dr. Garcia", notes: "Flu shot" },
-  { id: 5, date: "2025-07-22", type: "Consultation", status: "done", doctor: "Dr. Brown", notes: "General consultation" },
-  { id: 6, date: "2025-06-15", type: "Lab Test", status: "done", doctor: "Dr. Wilson", notes: "Urine test" },
-  { id: 7, date: "2025-05-05", type: "Consultation", status: "done", doctor: "Dr. Martinez", notes: "Follow-up visit" },
-  { id: 8, date: "2025-04-10", type: "Vaccination", status: "done", doctor: "Dr. Davis", notes: "Hepatitis B vaccine" },
-];
+// Component: MedicalHistoryFull
+// Fetches the full medical history object for the current user and renders
+// Top analytics + 3 sections: General info, Lab results, Past appointments.
 
-const statusColors = {
-  done: "bg-green-500",
-  requested: "bg-yellow-400",
-  pending: "bg-red-500",
-};
+export default function MedicalHistory() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-const ITEMS_PER_PAGE = 4;
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1e293b]/90 text-white p-3 rounded-xl shadow-lg border border-[#4addbf]/50 backdrop-blur-md">
-        <p className="font-bold mb-2">{label}</p>
-        {payload.map((item) => (
-          <p key={item.dataKey} className="flex items-center gap-2">
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: item.fill }}
-            ></span>
-            {item.dataKey}: {item.value}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-const MedicalHistory = () => {
+  // UI state
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [expanded, setExpanded] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
-  const filteredData = medicalHistoryData.filter((record) => {
-    const matchesFilter = filter === "all" || record.status === filter;
+  // get current userId (from localStorage or fallback)
+  const token = localStorage.getItem("token");
+  const userId = token ? JSON.parse(atob(token.split(".")[1])).userId : null;
+
+  // Fetch medical history data
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("token");
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch(`http://localhost:8000/api/user/${userId}`, {
+          headers,
+        });
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        const json = await res.json();
+        setData(json);
+      } catch (e) {
+        setError(e.message || e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userId) fetchData();
+    else {
+      setError("No userId found in localStorage");
+      setLoading(false);
+    }
+  }, [userId]);
+
+  // Derived lists (appointments, labResults). Ensure array types.
+  const appointments = useMemo(() => data?.appointments || [], [data]);
+  const labResults = useMemo(() => data?.labResults || [], [data]);
+
+  // Filtering logic for appointments & labs
+  const filteredAppointments = appointments.filter((a) => {
     const matchesSearch =
-      record.doctor.toLowerCase().includes(search.toLowerCase()) ||
-      record.type.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
+      !search ||
+      a.doctor?.toLowerCase().includes(search.toLowerCase()) ||
+      a.type?.toLowerCase().includes(search.toLowerCase()) ||
+      a.notes?.toLowerCase().includes(search.toLowerCase());
+
+    const matchesType = typeFilter === "all" || a.type === typeFilter;
+    const matchesStatus = statusFilter === "all" || a.status === statusFilter;
+
+    const date = a.date ? new Date(a.date) : null;
+    const fromOk = !dateFrom || (date && date >= new Date(dateFrom));
+    const toOk = !dateTo || (date && date <= new Date(dateTo));
+
+    return matchesSearch && matchesType && matchesStatus && fromOk && toOk;
   });
 
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+  const filteredLabResults = labResults.filter((l) => {
+    const matchesSearch =
+      !search ||
+      l.type?.toLowerCase().includes(search.toLowerCase()) ||
+      (l.notes || "").toLowerCase().includes(search.toLowerCase());
+
+    const date = l.date ? new Date(l.date) : null;
+    const fromOk = !dateFrom || (date && date >= new Date(dateFrom));
+    const toOk = !dateTo || (date && date <= new Date(dateTo));
+
+    return matchesSearch && fromOk && toOk;
+  });
+
+  // Chart data: visits per month
+  const visitsChart = useMemo(() => {
+    const map = new Map();
+    appointments.forEach((a) => {
+      const month = a.date ? a.date.slice(0, 7) : "unknown"; // YYYY-MM
+      const existing = map.get(month) || 0;
+      map.set(month, existing + 1);
+    });
+    return Array.from(map.entries())
+      .map(([month, count]) => ({ month, visits: count }))
+      .sort((a, b) => (a.month < b.month ? -1 : 1));
+  }, [appointments]);
+
+  // Chart data: lab counts per month
+  const labsChart = useMemo(() => {
+    const map = new Map();
+    labResults.forEach((l) => {
+      const month = l.date ? l.date.slice(0, 7) : "unknown";
+      map.set(month, (map.get(month) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([month, count]) => ({ month, labs: count }))
+      .sort((a, b) => (a.month < b.month ? -1 : 1));
+  }, [labResults]);
+
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f172a] text-white">
+        Loading medical history...
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f172a] text-white p-6">
+        <div className="bg-white/5 p-6 rounded-xl">Error: {String(error)}</div>
+      </div>
+    );
+
+  // Helper to render a simple key/value row
+  const InfoRow = ({ label, value }) => (
+    <div className="flex justify-between border-b border-white/10 py-3">
+      <div className="text-gray-300">{label}</div>
+      <div className="font-medium text-white">{value ?? "—"}</div>
+    </div>
   );
 
-  // Prepare data for chart
-  const chartData = filteredData.reduce((acc, curr) => {
-    const month = curr.date.slice(0, 7); // YYYY-MM
-    const existing = acc.find((d) => d.month === month);
-    if (existing) {
-      existing[curr.type] = (existing[curr.type] || 0) + 1;
-    } else {
-      acc.push({ month, [curr.type]: 1 });
-    }
-    return acc;
-  }, []);
-
   return (
-    <>
+    <div className="bg-[#0f172a] min-h-screen text-white font-roboto">
       <Navbar />
-      <div className="bg-[#0f172a] min-h-screen text-white pt-36 pb-7 font-roboto">
-        <h1 className="text-4xl md:text-5xl font-bold text-[#4addbf] text-center mb-12">
+
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <h1 className="text-4xl font-bold text-[#4addbf] mb-6">
           My Medical History
         </h1>
 
-        {/* Search + Filter */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 px-6 md:px-36">
-          <div className="relative w-full md:w-1/2">
-            <FiSearch className="absolute top-3 left-3 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by doctor or type..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full p-3 pl-10 rounded-2xl bg-white/10 border border-white/20 placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-[#4addbf] backdrop-blur-sm shadow-md transition-all"
-            />
-          </div>
+        {/* Top: Filters + Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 bg-white/5 p-6 rounded-3xl shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3 w-full md:w-1/2">
+                <FiSearch className="text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search appointments or labs..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-transparent outline-none placeholder-gray-400 text-white"
+                />
+              </div>
 
-          <div className="relative w-full md:w-1/4">
-            <button
-              className="w-full p-3 rounded-2xl bg-white/10 border border-white/20 text-white flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-[#4addbf] backdrop-blur-sm shadow-md transition-all"
-              onClick={() =>
-                setExpanded(expanded === "filter" ? null : "filter")
-              }
-            >
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              {expanded === "filter" ? <FiChevronUp /> : <FiChevronDown />}
-            </button>
-
-            <AnimatePresence>
-              {expanded === "filter" && (
-                <motion.ul
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute mt-2 w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-lg overflow-hidden z-50"
+              <div className="flex gap-3 items-center">
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="bg-white/5 text-white p-2 rounded-xl"
                 >
-                  {["all", "done", "requested", "pending"].map((opt) => (
-                    <li
-                      key={opt}
-                      onClick={() => {
-                        setFilter(opt);
-                        setExpanded(null);
-                        setCurrentPage(1);
-                      }}
-                      className="p-3 text-white cursor-pointer hover:bg-[#4addbf]/50 transition-all"
-                    >
-                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                    </li>
-                  ))}
-                </motion.ul>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+                  <option value="all">All Types</option>
+                  <option value="Consultation">Consultation</option>
+                  <option value="Lab Test">Lab Test</option>
+                  <option value="Vaccination">Vaccination</option>
+                </select>
 
-        {/* Chart */}
-        <div className="px-6 md:px-36 mb-12">
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 shadow-md hover:shadow-[#4addbf]/50 transition-all">
-            <h2 className="text-xl font-semibold text-[#67e8f9] mb-4">
-              Visits Overview
-            </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={chartData}
-                margin={{ top: 20, right: 20, left: 0, bottom: 10 }}
-              >
-                <XAxis
-                  dataKey="month"
-                  stroke="#67e8f9"
-                  tick={{ fill: "#67e8f9", fontSize: 14, fontWeight: 600 }}
-                />
-                <YAxis
-                  stroke="#67e8f9"
-                  tick={{ fill: "#67e8f9", fontSize: 14, fontWeight: 600 }}
-                />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255, 255, 255, 0.1)" }} />
-                <Legend
-                  wrapperStyle={{ color: "white", fontWeight: "bold" }}
-                  iconType="circle"
-                />
-                <Bar
-                  dataKey="Consultation"
-                  stackId="a"
-                  fill="url(#consultGradient)"
-                  radius={[8, 8, 0, 0]}
-                  animationDuration={800}
-                />
-                <Bar
-                  dataKey="Lab Test"
-                  stackId="a"
-                  fill="url(#labGradient)"
-                  radius={[8, 8, 0, 0]}
-                  animationDuration={800}
-                />
-                <Bar
-                  dataKey="Vaccination"
-                  stackId="a"
-                  fill="url(#vacGradient)"
-                  radius={[8, 8, 0, 0]}
-                  animationDuration={800}
-                />
-                <defs>
-                  <linearGradient
-                    id="consultGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#4addbf" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.6} />
-                  </linearGradient>
-                  <linearGradient
-                    id="labGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.6} />
-                  </linearGradient>
-                  <linearGradient
-                    id="vacGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#67e8f9" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.6} />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-white/5 text-white p-2 rounded-xl"
+                >
+                  <option value="all">All Status</option>
+                  <option value="done">Done</option>
+                  <option value="requested">Requested</option>
+                  <option value="pending">Pending</option>
+                </select>
 
-        {/* Timeline / Cards */}
-        <div className="relative px-6 md:px-36 mb-12">
-          <div className="border-l border-white/20 absolute h-full top-0 left-5 md:left-28"></div>
-          <div className="flex flex-col gap-8">
-            {paginatedData.map((record, i) => (
-              <motion.div
-                key={record.id}
-                className="relative flex flex-col md:flex-row items-start gap-6 md:gap-8"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full ${statusColors[record.status]} absolute left-0 md:left-8 mt-2 shadow-lg`}
-                ></div>
-                <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 flex-1 shadow-md hover:shadow-[#4addbf]/50 transition-all cursor-pointer">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-xl font-semibold text-[#67e8f9]">
-                      {record.type}
-                    </h3>
-                    <span
-                      className={`px-3 py-1 rounded-xl text-sm ${statusColors[record.status]} text-black font-bold`}
+                <input
+                  type="month"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value + "-01")}
+                  className="bg-white/5 text-white p-2 rounded-xl"
+                />
+                <input
+                  type="month"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value + "-31")}
+                  className="bg-white/5 text-white p-2 rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gradient-to-tr from-[#06202a] to-[#042231] rounded-2xl p-4">
+                <h3 className="text-sm text-gray-300 mb-2">Visits Overview</h3>
+                <div style={{ width: "100%", height: 220 }}>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={visitsChart}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                     >
-                      {record.status.charAt(0).toUpperCase() +
-                        record.status.slice(1)}
-                    </span>
-                  </div>
-                  <p className="text-gray-300 mb-1">Doctor: {record.doctor}</p>
-                  <p className="text-gray-400 text-sm">{record.notes}</p>
-                  <p className="text-gray-500 text-xs mt-2">{record.date}</p>
+                      <XAxis
+                        dataKey="month"
+                        stroke="#67e8f9"
+                        tick={{ fill: "#67e8f9" }}
+                      />
+                      <YAxis stroke="#67e8f9" tick={{ fill: "#67e8f9" }} />
+                      <Tooltip />
+                      <Bar
+                        dataKey="visits"
+                        fill="#4addbf"
+                        radius={[6, 6, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              </motion.div>
-            ))}
-            {filteredData.length === 0 && (
-              <p className="text-center text-gray-400 mt-6">No records found.</p>
+              </div>
+
+              <div className="bg-gradient-to-tr from-[#041927] to-[#041f2b] rounded-2xl p-4">
+                <h3 className="text-sm text-gray-300 mb-2">
+                  Lab Results Count
+                </h3>
+                <div style={{ width: "100%", height: 220 }}>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart
+                      data={labsChart}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <XAxis
+                        dataKey="month"
+                        stroke="#67e8f9"
+                        tick={{ fill: "#67e8f9" }}
+                      />
+                      <YAxis stroke="#67e8f9" tick={{ fill: "#67e8f9" }} />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="labs"
+                        stroke="#67e8f9"
+                        strokeWidth={3}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/5 p-6 rounded-3xl shadow-md">
+            <h3 className="text-xl font-semibold text-[#67e8f9] mb-4">
+              Quick Summary
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between text-gray-300">
+                <div>Full name</div>
+                <div className="font-medium text-white">
+                  {data?.user?.username}
+                </div>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <div>Email</div>
+                <div className="font-medium text-white">
+                  {data?.user?.email}
+                </div>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <div>Conditions</div>
+                <div className="font-medium text-white">
+                  {data?.conditions || "—"}
+                </div>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <div>Allergies</div>
+                <div className="font-medium text-white">
+                  {data?.allergies || "—"}
+                </div>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <div>Blood Type</div>
+                <div className="font-medium text-white">
+                  {data?.bloodType || "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sections: General Info | Lab Results | Past Appointments */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* General Info */}
+          <div className="lg:col-span-1 bg-white/5 p-6 rounded-3xl shadow-md">
+            <h2 className="text-2xl font-semibold text-[#4addbf] mb-4">
+              General Information
+            </h2>
+            <InfoRow label="Date of Birth" value={data?.dateOfBirth} />
+            <InfoRow label="Gender" value={data?.gender} />
+            <InfoRow label="Height (cm)" value={data?.heightCm} />
+            <InfoRow label="Weight (kg)" value={data?.weightKg} />
+            <InfoRow label="Medications" value={data?.medications || "—"} />
+            <InfoRow label="Smoking" value={data?.smokingStatus || "—"} />
+            <InfoRow label="Alcohol" value={data?.alcoholConsumption || "—"} />
+            <InfoRow label="Notes" value={data?.notesDaySingIn || "—"} />
+          </div>
+
+          {/* Lab Results */}
+          <div className="lg:col-span-1 bg-white/5 p-6 rounded-3xl shadow-md">
+            <h2 className="text-2xl font-semibold text-[#4addbf] mb-4">
+              Lab Results
+            </h2>
+            {filteredLabResults.length === 0 ? (
+              <div className="text-gray-400">No lab results found.</div>
+            ) : (
+              <div className="space-y-4">
+                {filteredLabResults.map((lab, idx) => (
+                  <details key={idx} className="bg-white/3 p-4 rounded-xl">
+                    <summary className="flex justify-between cursor-pointer">
+                      <div>
+                        <div className="font-semibold">{lab.type}</div>
+                        <div className="text-sm text-gray-300">{lab.date}</div>
+                      </div>
+                      <div className="text-sm text-gray-300">
+                        {lab.location || "—"}
+                      </div>
+                    </summary>
+
+                    <div className="mt-3 text-gray-200">
+                      {/* values: object of metrics */}
+                      {lab.values ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(lab.values).map(([k, v]) => (
+                            <div key={k} className="p-2 bg-white/5 rounded-lg">
+                              <div className="text-xs text-gray-300">{k}</div>
+                              <div className="font-medium">{String(v)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-400">
+                          No numeric values available.
+                        </div>
+                      )}
+
+                      {lab.notes && (
+                        <p className="mt-3 text-gray-300">Notes: {lab.notes}</p>
+                      )}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Past Appointments */}
+          <div className="lg:col-span-1 bg-white/5 p-6 rounded-3xl shadow-md">
+            <h2 className="text-2xl font-semibold text-[#4addbf] mb-4">
+              Past Appointments
+            </h2>
+            {filteredAppointments.length === 0 ? (
+              <div className="text-gray-400">No appointments found.</div>
+            ) : (
+              <div className="space-y-4">
+                {filteredAppointments.map((a) => (
+                  <div key={a.id} className="bg-white/3 p-4 rounded-xl">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-semibold">{a.type}</div>
+                        <div className="text-sm text-gray-300">{a.date}</div>
+                        <div className="text-sm text-gray-300">
+                          Doctor: {a.doctor || "—"}
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span
+                          className={`px-3 py-1 rounded-full text-black font-semibold ${
+                            a.status === "done"
+                              ? "bg-green-300"
+                              : a.status === "requested"
+                              ? "bg-yellow-300"
+                              : "bg-red-300"
+                          }`}
+                        >
+                          {a.status}
+                        </span>
+                      </div>
+                    </div>
+                    {a.notes && (
+                      <p className="mt-3 text-gray-300">Notes: {a.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
-
-        {/* Pagination */}
-        <div className="flex justify-center items-center gap-4 px-6 md:px-24 mb-12">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-[#4addbf]/50 transition-all disabled:opacity-50"
-          >
-            Prev
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`px-4 py-2 rounded-xl transition-all ${
-                currentPage === i + 1
-                  ? "bg-[#4addbf]/80"
-                  : "bg-white/10 hover:bg-[#4addbf]/50"
-              }`}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-[#4addbf]/50 transition-all disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
       </div>
-      <Footer />
-    </>
-  );
-};
 
-export default MedicalHistory;
+      <Footer />
+    </div>
+  );
+}

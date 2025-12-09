@@ -1,12 +1,14 @@
-import React from "react";
+import React, { useContext } from "react";
 import { motion } from "framer-motion";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import geosearch from "../../static/story.png";
 import chatbot from "../../static/goals.png";
 import prescription from "../../static/services.png";
+import { LanguageContext } from "../../context/LanguageContext";
 
 const AboutUs = () => {
+  const { t } = useContext(LanguageContext);
   return (
     <>
       <Navbar />
@@ -26,16 +28,15 @@ const AboutUs = () => {
         />
 
         <h1 className="relative text-5xl md:text-6xl font-extrabold text-white drop-shadow-[0_0_10px_#4addbf]">
-          About <span className="text-[#4addbf]">Us</span>
+          {t("about.hero.title")}
         </h1>
         <p className="relative mt-4 text-lg md:text-xl text-white/70 drop-shadow-[0_0_6px_#4addbf] max-w-2xl">
-          Learn more about our mission, story, and the services we offer.
+          {t("about.hero.subtitle")}
         </p>
       </div>
 
       {/* Main Content */}
       <div className=" bg-[#0F172A] container mx-auto py-12 px-6 lg:px-32 space-y-20 text-white">
-
         {/* Goals Section */}
         <motion.div
           initial={{ x: -50, opacity: 0 }}
@@ -44,10 +45,10 @@ const AboutUs = () => {
           className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
         >
           <div>
-            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">Our Goals</h2>
-            <p className="text-white/70">
-              At Medlink, we aim to revolutionize healthcare delivery. Our goal is to create a seamless, accessible, and efficient platform connecting patients with healthcare providers, pharmacies, and laboratories.
-            </p>
+            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">
+              {t("about.goals.title")}
+            </h2>
+            <p className="text-white/70">{t("about.goals.desc")}</p>
           </div>
           <div className="flex justify-center relative">
             <img
@@ -73,10 +74,10 @@ const AboutUs = () => {
             />
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">Our Story</h2>
-            <p className="text-white/70">
-              Founded in Tunisia, Medlink was born out of a vision to bridge the gap between patients and healthcare providers. Our story began with a commitment to innovation and a passion for improving healthcare accessibility for everyone.
-            </p>
+            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">
+              {t("about.story.title")}
+            </h2>
+            <p className="text-white/70">{t("about.story.desc")}</p>
           </div>
         </motion.div>
 
@@ -88,10 +89,10 @@ const AboutUs = () => {
           className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
         >
           <div>
-            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">Our Services</h2>
-            <p className="text-white/70">
-              We provide online doctor consultations, pharmacy integration for electronic prescriptions, and laboratory result management to ensure you receive the best care possible.
-            </p>
+            <h2 className="text-3xl font-bold text-[#4addbf] mb-4 drop-shadow-[0_0_10px_#4addbf]">
+              {t("about.services.title")}
+            </h2>
+            <p className="text-white/70">{t("about.services.desc")}</p>
           </div>
           <div className="flex justify-center relative">
             <img

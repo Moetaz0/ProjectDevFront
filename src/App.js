@@ -1,68 +1,107 @@
-import './App.css';
-import { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom'; // Added useLocation
-import MapPage from './Components/pages/MapPage';
-import Home from './Components/pages/Home';
-import ScrollToTopButton from './Components/ScrollToTopButton ';
-import Chatbot from './Components/Chatbot';
-import LoadingScreen from './Components/LoadingScreen ';
-import ContactUs from './Components/pages/ContactUs';
+// src/App.js
+import "./App.css";
+import { useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
+import PatientRoute from "./Components/PatientRoute";
+import DoctorRoute from "./Components/DoctorRoute";
+import MapPage from "./Components/pages/MapPage";
+import Home from "./Components/pages/Home";
+import ContactUs from "./Components/pages/ContactUs";
+import AboutUs from "./Components/pages/AboutUs";
+import SignUp from "./Components/auth/SignUp";
+import SignIn from "./Components/auth/SignIn";
+import ForgetPassword from "./Components/auth/forgotPassword";
+import LoadingScreen from "./Components/LoadingScreen ";
+import ScrollToTopButton from "./Components/ScrollToTopButton ";
+import Chatbot from "./Components/Chatbot";
+import AppointmentForm from "./Components/AppointmentForm ";
+import Prescriptions from "./Components/Patient/Prescriptions";
+import MedicalHistory from "./Components/Patient/MedicalHistory";
 import Settings from "./Components/pages/Settings";
-import AboutUs from './Components/pages/AboutUs';
-import SignUp from './Components/auth/SignUp';          
-import Step2 from './Components/auth/Step2';  
-import Step3 from './Components/auth/Step3'; 
-import Step4 from './Components/auth/Step4'; 
-import SignIn from './Components/auth/SignIn';
-import ForgetPassword from './Components/auth/forgotPassword';
-import AppointmentForm from './Components/AppointmentForm ';
-import Prescriptions from './Components/Patient/Prescriptions';
-import MedicalHistory from './Components/Patient/MedicalHistory';
 import PrivacyPolicy from "./Components/legal/PrivacyPolicy";
-import MessagePage from "./Components/Patient/Messages";
-import Dashboard from "./Components/Doctor/Dashboard"; // Import Doctor Dashboard
+import ContactFormApp from "./Components/Patient/ContactFormApp";
+import Step2 from "./Components/auth/Step2";
+import Step3 from "./Components/auth/Step3";
+import Step4 from "./Components/auth/Step4";
+import DoctorDashboard from "./Components/Doctor/Dashboard";
 
+// App.js
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const location = useLocation(); // Get current route
+  const location = useLocation();
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 3000);
     return () => clearTimeout(timer);
   }, []);
 
-  // Hide Chatbot only on /messages page
-  const showChatbot = location.pathname !== "/messages";
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
+  if (isLoading) return <LoadingScreen />;
+  const hideChatbot = location.pathname === "/messages";
 
   return (
     <>
       <Routes>
-        <Route path="/map" element={<MapPage />} />
         <Route path="/" element={<Home />} />
+        <Route path="/map" element={<MapPage />} />
         <Route path="/contact" element={<ContactUs />} />
-        <Route path="/SignUp" element={<SignUp />} />
-         <Route path="/SignUp/Step2" element={<Step2 />} />
-          <Route path="/SignUp/Step3" element={<Step3 />} />
-           <Route path="/SignUp/Step4" element={<Step4 />} />
-        <Route path="/forgetpassword" element={<ForgetPassword />} />
-        <Route path="/SignIn" element={<SignIn />} />
         <Route path="/aboutus" element={<AboutUs />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/SignUp" element={<SignUp />} />
+        <Route path="/SignIn" element={<SignIn />} />
+        <Route path="/forgetpassword" element={<ForgetPassword />} />
         <Route path="/appointment" element={<AppointmentForm />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/prescriptions" element={<Prescriptions />} />
-        <Route path="/medical-history" element={<MedicalHistory />} />
-        <Route path="/messages" element={<MessagePage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/SignUp/Step2" element={<Step2 />} />
+        <Route path="/SignUp/Step3" element={<Step3 />} />
+        <Route path="/SignUp/Step4" element={<Step4 />} />
+
+        <Route
+          path="/prescriptions"
+          element={
+            <PatientRoute>
+              <Prescriptions />
+            </PatientRoute>
+          }
+        />
+        <Route
+          path="/medical-history"
+          element={
+            <PatientRoute>
+              <MedicalHistory />
+            </PatientRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PatientRoute>
+              <Settings />
+            </PatientRoute>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <PatientRoute>
+              <ContactFormApp />
+            </PatientRoute>
+          }
+        />
+        <Route
+          path="/doctor-dashboard"
+          element={
+            <DoctorRoute>
+              <DoctorDashboard />
+            </DoctorRoute>
+          }
+        />
       </Routes>
 
-      {/* Chatbot only appears when NOT on /messages */}
-      {showChatbot && <Chatbot />}
-
+      {!hideChatbot && <Chatbot />}
       <ScrollToTopButton />
     </>
   );

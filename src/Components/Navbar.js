@@ -8,6 +8,7 @@ import { IoLocationOutline } from "react-icons/io5";
 import { FaFacebookF, FaLinkedinIn, FaInstagram } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import profileImage from "../static/profile.png";
+import { LanguageContext } from "../context/LanguageContext";
 
 const Navbar = () => {
   const [accountDropdown, setAccountDropdown] = useState(false);
@@ -16,6 +17,7 @@ const Navbar = () => {
   const languageRef = useRef(null);
 
   const { user, logout } = useContext(AuthContext);
+  const { language, updateLanguage, t } = useContext(LanguageContext);
 
   const toggleAccountDropdown = () => {
     setAccountDropdown(!accountDropdown);
@@ -56,15 +58,15 @@ const Navbar = () => {
           <div className="flex items-center space-x-4 text-gray-300">
             <div className="flex items-center space-x-2 hover:text-cyan-400">
               <CiMail size={22} />
-              <span>contact@Medlink.com</span>
+              <span>{t("nav.contactEmail")}</span>
             </div>
             <div className="flex items-center space-x-2 hover:text-cyan-400">
               <CiPhone size={22} />
-              <span>+123 456 789</span>
+              <span>{t("nav.phone")}</span>
             </div>
             <div className="flex items-center space-x-2 hover:text-cyan-400">
               <IoLocationOutline size={22} />
-              <span>Tunis, Tunisia</span>
+              <span>{t("nav.location")}</span>
             </div>
           </div>
 
@@ -92,32 +94,27 @@ const Navbar = () => {
           />
           <div>
             <h1 className="text-cyan-400 text-3xl font-semibold">Medlink</h1>
-            <p className="text-gray-400 text-xs">For Better Health</p>
+            <p className="text-gray-400 text-xs">{t("nav.brand.tagline")}</p>
           </div>
         </a>
 
         {/* LINKS */}
         <div className="flex items-center space-x-10">
-          {["Home", "Search", "Contact Us", "About Medlink"].map(
-            (name, idx) => (
-              <a
-                key={idx}
-                href={
-                  name === "Home"
-                    ? "/"
-                    : name === "Search"
-                    ? "/map"
-                    : name === "Contact Us"
-                    ? "/contact"
-                    : "/aboutus"
-                }
-                className="text-gray-300 hover:text-cyan-400 relative group"
-              >
-                {name}
-                <span className="absolute bottom-0 left-1/2 w-0 h-[2px] bg-cyan-400 transition-all group-hover:w-full group-hover:left-0"></span>
-              </a>
-            )
-          )}
+          {[
+            { label: t("nav.link.home"), href: "/" },
+            { label: t("nav.link.search"), href: "/map" },
+            { label: t("nav.link.contact"), href: "/contact" },
+            { label: t("nav.link.about"), href: "/aboutus" },
+          ].map((item, idx) => (
+            <a
+              key={idx}
+              href={item.href}
+              className="text-gray-300 hover:text-cyan-400 relative group"
+            >
+              {item.label}
+              <span className="absolute bottom-0 left-1/2 w-0 h-[2px] bg-cyan-400 transition-all group-hover:w-full group-hover:left-0"></span>
+            </a>
+          ))}
 
           {/* ACCOUNT */}
           <div className="relative" ref={accountRef}>
@@ -145,10 +142,16 @@ const Navbar = () => {
                   {user ? (
                     <>
                       {[
-                        { label: "Medical History", link: "/medical-history" },
-                        { label: "My Prescriptions", link: "/prescriptions" },
-                        { label: "Upcoming Events", link: "/events" },
-                        { label: "Settings", link: "/settings" },
+                        {
+                          label: t("nav.menu.history"),
+                          link: "/medical-history",
+                        },
+                        {
+                          label: t("nav.menu.prescriptions"),
+                          link: "/prescriptions",
+                        },
+                        { label: t("nav.menu.messages"), link: "/messages" },
+                        { label: t("nav.menu.settings"), link: "/settings" },
                       ].map((item, i) => (
                         <a
                           key={i}
@@ -165,7 +168,7 @@ const Navbar = () => {
                         }}
                         className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-500/20 transition"
                       >
-                        Logout
+                        {t("nav.menu.logout")}
                       </button>
                     </>
                   ) : (
@@ -174,13 +177,13 @@ const Navbar = () => {
                         href="/signin"
                         className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
                       >
-                        Login
+                        {t("nav.menu.login")}
                       </a>
                       <a
                         href="/signup"
                         className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
                       >
-                        Sign Up
+                        {t("nav.menu.signup")}
                       </a>
                     </>
                   )}
@@ -236,13 +239,24 @@ const Navbar = () => {
                     transition={{ duration: 0.2 }}
                     className="absolute right-0 mt-2 w-40 bg-[#121826] border border-cyan-400/20 rounded-lg shadow-xl z-50 overflow-hidden"
                   >
-                    {["English", "Français", "عربى"].map((lang, i) => (
-                      <a
-                        key={i}
-                        className="block px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition"
+                    {[
+                      { code: "en", label: "English" },
+                      { code: "fr", label: "Français" },
+                      { code: "ar", label: "عربى" },
+                      { code: "es", label: "Español" },
+                    ].map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => {
+                          updateLanguage(lang.code);
+                          setLanguageDropdown(false);
+                        }}
+                        className={`block w-full text-left px-4 py-2 text-gray-300 hover:bg-cyan-500/20 transition ${
+                          language === lang.code ? "bg-cyan-500/10" : ""
+                        }`}
                       >
-                        {lang}
-                      </a>
+                        {lang.label}
+                      </button>
                     ))}
                   </motion.div>
                 )}

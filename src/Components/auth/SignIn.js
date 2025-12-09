@@ -10,7 +10,6 @@ import {
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { AuthContext } from "../../context/AuthContext";
-import { loginUser } from "../../services/authService";
 import { useNavigate, Link } from "react-router-dom";
 
 const SignIn = () => {
@@ -28,6 +27,7 @@ const SignIn = () => {
   useEffect(() => {
     // Already logged in → redirect to home
     if (user?.role === "CLIENT") navigate("/");
+    else if (user?.role === "DOCTOR") navigate("/doctor-dashboard");
   }, [user, navigate]);
 
   const validateEmail = (e) => {
@@ -54,7 +54,9 @@ const SignIn = () => {
     try {
       setLoading(true);
       await login({ email, password });
-      navigate("/", { replace: true });
+      if (user?.role === "CLIENT") navigate("/", { replace: true });
+      else if (user?.role === "DOCTOR")
+        navigate("/doctor-dashboard", { replace: true });
     } catch (err) {
       setError(err.error || "Invalid credentials");
     } finally {
