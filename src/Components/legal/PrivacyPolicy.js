@@ -8,7 +8,7 @@ const PrivacyPolicy = () => {
     <>
       <Navbar />
 
-      <div className="min-h-screen bg-gradient-to-b from-[#020617] via-[#0f172a] to-[#1e293b] text-white px-6 md:px-20 py-16">
+      <div className="min-h-screen bg-gradient-to-b from-[#020617] via-[#0f172a] to-[#1e293b] text-white px-6 md:px-20 pt-24 pb-12"> 
         <motion.h1
           className="text-4xl font-bold text-[#4addbf] mb-10 drop-shadow-[0_0_12px_#4addbf]"
           initial={{ opacity: 0, y: -20 }}

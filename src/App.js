@@ -2,7 +2,6 @@
 import "./App.css";
 import { useState, useEffect } from "react";
 import {
-  BrowserRouter as Router,
   Routes,
   Route,
   useLocation,
@@ -28,7 +27,14 @@ import ContactFormApp from "./Components/Patient/ContactFormApp";
 import Step2 from "./Components/auth/Step2";
 import Step3 from "./Components/auth/Step3";
 import Step4 from "./Components/auth/Step4";
-import DoctorDashboard from "./Components/Doctor/Dashboard";
+import Dashboard from "./Components/Doctor/Dashboard";
+import DoctorSettings from "./Components/Doctor/DoctorSettings";
+import DoctorMessages from "./Components/Doctor/DoctorMessages";
+import DoctorAppointments from "./Components/Doctor/DoctorAppointments";
+import DoctorPatients from "./Components/Doctor/DoctorPatients";
+import LabDashboard from "./Components/Lab/LabDashboard";
+import LabSettings from "./Components/Lab/LabSettings";
+import UploadReport from "./Components/Lab/UploadReport";
 
 // App.js
 function App() {
@@ -36,12 +42,18 @@ function App() {
   const location = useLocation();
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 3000);
+    const timer = setTimeout(() => setIsLoading(false), 1000);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) return <LoadingScreen />;
-  const hideChatbot = location.pathname === "/messages";
+  // Hide Chatbot only on /messages and /DoctorMessages pages
+  const showChatbot =
+    location.pathname !== "/messages" &&
+    location.pathname !== "/DoctorMessages";
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <>
@@ -95,13 +107,20 @@ function App() {
           path="/doctor-dashboard"
           element={
             <DoctorRoute>
-              <DoctorDashboard />
+              <Dashboard />
             </DoctorRoute>
           }
         />
+        <Route path="/Doctor-Settings" element={<DoctorSettings />} />
+        <Route path="/Doctor-Messages" element={<DoctorMessages />} />
+        <Route path="/Doctor-Appointments" element={<DoctorAppointments />} />
+        <Route path="/Doctor-Patients" element={<DoctorPatients />} />
+        <Route path="/Lab-Dashboard" element={<LabDashboard />} />
+        <Route path="/Lab-Settings" element={<LabSettings />} />
+        <Route path="/Upload-Report" element={<UploadReport />} />
       </Routes>
 
-      {!hideChatbot && <Chatbot />}
+      {showChatbot && <Chatbot />}
       <ScrollToTopButton />
     </>
   );
