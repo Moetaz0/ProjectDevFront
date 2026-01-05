@@ -9,6 +9,7 @@ import { FaFacebookF, FaLinkedinIn, FaInstagram } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import profileImage from "../static/profile.png";
 import { LanguageContext } from "../context/LanguageContext";
+import NotificationDropdown from "./NotificationDropdown";
 
 const Navbar = () => {
   const [accountDropdown, setAccountDropdown] = useState(false);
@@ -143,6 +144,10 @@ const Navbar = () => {
                     <>
                       {[
                         {
+                          label: "Notifications",
+                          link: "/notifications",
+                        },
+                        {
                           label: t("nav.menu.history"),
                           link: "/medical-history",
                         },
@@ -192,34 +197,10 @@ const Navbar = () => {
             </AnimatePresence>
           </div>
 
-          {/* LANGUAGE */}
+          {/* NOTIFICATION DROPDOWN & LANGUAGE */}
           {user ? (
-            // 🔔 NOTIFICATION ICON
-            <div className="relative">
-              <button className="text-gray-300 hover:text-cyan-400">
-                <span className="relative">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-7 w-7"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0"
-                    />
-                  </svg>
-
-                  {/* Red notification badge */}
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-xs text-white px-1.5 rounded-full">
-                    3
-                  </span>
-                </span>
-              </button>
-            </div>
+            // 🔔 NOTIFICATION DROPDOWN
+            <NotificationDropdown />
           ) : (
             // 🌍 LANGUAGE MENU
             <div className="relative" ref={languageRef}>

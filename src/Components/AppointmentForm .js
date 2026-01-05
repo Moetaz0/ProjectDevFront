@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const AppointmentForm = ({ onClose }) => {
   const [doctors, setDoctors] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [formData, setFormData] = useState({
     doctorId: "",
     date: "",
@@ -27,6 +30,8 @@ const AppointmentForm = ({ onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSuccessMsg("");
+    setErrorMsg("");
 
     const user = JSON.parse(localStorage.getItem("user"));
 
@@ -44,6 +49,7 @@ const AppointmentForm = ({ onClose }) => {
     console.log("Appointment payload:", payload);
 
     try {
+      setSubmitting(true);
       const token = localStorage.getItem("token");
       await api.post("/appointments/book", payload, {
         headers: {
@@ -51,11 +57,12 @@ const AppointmentForm = ({ onClose }) => {
         },
       });
 
-      alert("Appointment created successfully!");
-      onClose();
+      setSuccessMsg("Appointment created successfully!");
     } catch (error) {
       console.error("Error creating appointment:", error);
-      alert("Failed to create appointment");
+      setErrorMsg("Failed to create appointment. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -176,12 +183,20 @@ const AppointmentForm = ({ onClose }) => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 type="submit"
+                disabled={submitting}
                 className="py-2 px-6 rounded-lg bg-[#4addbf] text-gray-900 
-                font-semibold hover:bg-[#39c6a5] transition shadow-md"
+                font-semibold hover:bg-[#39c6a5] transition shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Confirm
+                {submitting ? "Booking..." : "Confirm"}
               </motion.button>
             </div>
+
+            {(successMsg || errorMsg) && (
+              <div className="pt-3 text-sm font-semibold">
+                {successMsg && <p className="text-green-400">{successMsg}</p>}
+                {errorMsg && <p className="text-red-400">{errorMsg}</p>}
+              </div>
+            )}
           </form>
         </motion.div>
       </motion.div>

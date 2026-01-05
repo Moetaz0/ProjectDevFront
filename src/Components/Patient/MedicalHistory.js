@@ -13,6 +13,10 @@ import {
   Line,
 } from "recharts";
 import { FiSearch, FiChevronDown } from "react-icons/fi";
+import {
+  getLabResultSignedUrl,
+  getClientAppointments,
+} from "../../services/api";
 
 // Component: MedicalHistoryFull
 // Fetches the full medical history object for the current user and renders
@@ -22,13 +26,22 @@ export default function MedicalHistory() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [clientAppointments, setClientAppointments] = useState([]);
+  const [preview, setPreview] = useState({
+    open: false,
+    url: null,
+    type: null,
+    filename: null,
+    loading: true,
+  });
 
   // UI state
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [appointmentPage, setAppointmentPage] = useState(1);
+  const [labResultPage, setLabResultPage] = useState(1);
+  const itemsPerPage = 3;
 
   // get current userId (from localStorage or fallback)
   const token = localStorage.getItem("token");
@@ -47,11 +60,63 @@ export default function MedicalHistory() {
         const res = await fetch(`http://localhost:8000/api/user/${userId}`, {
           headers,
         });
-        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
-        const json = await res.json();
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("API Error Response:", errorText);
+          throw new Error(`Failed to fetch: ${res.status}`);
+        }
+
+        // Get the response text first
+        const responseText = await res.text();
+        console.log("Raw API Response:", responseText);
+
+        // Try to parse it as JSON
+        let json;
+        try {
+          json = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("JSON Parse Error:", parseError);
+          console.error(
+            "Invalid JSON text (first 500 chars):",
+            responseText.substring(0, 500)
+          );
+
+          // Check if it's a circular reference issue
+          if (
+            responseText.includes('"results":[{"id":1') &&
+            responseText.length > 10000
+          ) {
+            throw new Error(
+              "Backend API has a circular reference issue in labResults. Please add @JsonIgnoreProperties to the Lab entity in your Spring Boot backend to exclude the 'results' field when serializing."
+            );
+          }
+
+          throw new Error(
+            "Server returned invalid JSON. Please check the backend API."
+          );
+        }
+
         setData(json);
+
+        // Fetch client appointments and filter for CONFIRMED status
+        try {
+          const appointments = await getClientAppointments(userId);
+          const confirmedAppointments = Array.isArray(appointments)
+            ? appointments.filter((apt) => apt.status === "CONFIRMED")
+            : [];
+          setClientAppointments(confirmedAppointments);
+          console.log("Confirmed Appointments:", confirmedAppointments);
+        } catch (appointmentError) {
+          console.warn(
+            "Failed to fetch client appointments:",
+            appointmentError
+          );
+          // Don't fail the entire component if appointments fail
+        }
       } catch (e) {
-        setError(e.message || e);
+        console.error("Fetch error:", e);
+        setError(e.message || String(e));
       } finally {
         setLoading(false);
       }
@@ -65,8 +130,16 @@ export default function MedicalHistory() {
   }, [userId]);
 
   // Derived lists (appointments, labResults). Ensure array types.
-  const appointments = useMemo(() => data?.appointments || [], [data]);
+  const appointments = useMemo(
+    () =>
+      clientAppointments.length > 0
+        ? clientAppointments
+        : data?.appointments || [],
+    [data, clientAppointments]
+  );
   const labResults = useMemo(() => data?.labResults || [], [data]);
+  console.log("Appointments:", appointments);
+  console.log("Lab Results:", labResults);
 
   // Filtering logic for appointments & labs
   const filteredAppointments = appointments.filter((a) => {
@@ -76,14 +149,11 @@ export default function MedicalHistory() {
       a.type?.toLowerCase().includes(search.toLowerCase()) ||
       a.notes?.toLowerCase().includes(search.toLowerCase());
 
-    const matchesType = typeFilter === "all" || a.type === typeFilter;
-    const matchesStatus = statusFilter === "all" || a.status === statusFilter;
-
     const date = a.date ? new Date(a.date) : null;
     const fromOk = !dateFrom || (date && date >= new Date(dateFrom));
     const toOk = !dateTo || (date && date <= new Date(dateTo));
 
-    return matchesSearch && matchesType && matchesStatus && fromOk && toOk;
+    return matchesSearch && fromOk && toOk;
   });
 
   const filteredLabResults = labResults.filter((l) => {
@@ -98,6 +168,20 @@ export default function MedicalHistory() {
 
     return matchesSearch && fromOk && toOk;
   });
+
+  // Pagination calculations
+  const appointmentPages = Math.ceil(
+    filteredAppointments.length / itemsPerPage
+  );
+  const labResultPages = Math.ceil(filteredLabResults.length / itemsPerPage);
+  const paginatedAppointments = filteredAppointments.slice(
+    (appointmentPage - 1) * itemsPerPage,
+    appointmentPage * itemsPerPage
+  );
+  const paginatedLabResults = filteredLabResults.slice(
+    (labResultPage - 1) * itemsPerPage,
+    labResultPage * itemsPerPage
+  );
 
   // Chart data: visits per month
   const visitsChart = useMemo(() => {
@@ -123,6 +207,90 @@ export default function MedicalHistory() {
       .map(([month, count]) => ({ month, labs: count }))
       .sort((a, b) => (a.month < b.month ? -1 : 1));
   }, [labResults]);
+
+  // File preview helpers (reuse logic similar to LabDashboard)
+  const getFileType = (url) => {
+    if (!url) return "unknown";
+    const clean = url.split("?")[0];
+    const ext = (clean.split(".").pop() || "").toLowerCase();
+
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext))
+      return "image";
+    if (ext === "pdf") return "pdf";
+    if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
+      return "office";
+
+    if (url.includes("cloudinary.com") && url.includes("/raw/upload/")) {
+      if (url.includes("lab_results") || url.includes("file_")) {
+        return "pdf";
+      }
+    }
+
+    return "unknown";
+  };
+
+  const getEffectivePreviewUrl = (url, type) => {
+    if (!url) return url;
+    let effectiveUrl = url;
+    if (url.includes("res.cloudinary.com")) {
+      if (type === "pdf" && url.includes("/image/upload/")) {
+        effectiveUrl = url.replace("/image/upload/", "/raw/upload/");
+      }
+      if (type === "pdf" && effectiveUrl.includes("/raw/upload/")) {
+        const hasExtension = /\.(pdf|png|jpg|jpeg|doc|docx)$/i.test(
+          effectiveUrl.split("?")[0]
+        );
+        if (!hasExtension) {
+          const [baseUrl, queryString] = effectiveUrl.split("?");
+          effectiveUrl = queryString
+            ? `${baseUrl}.pdf?${queryString}`
+            : `${baseUrl}.pdf`;
+        }
+      }
+    }
+    if (type === "pdf") {
+      const separator = effectiveUrl.includes("?") ? "&" : "#";
+      return `${effectiveUrl}${separator}toolbar=1&zoom=page-width`;
+    }
+    return effectiveUrl;
+  };
+
+  const openPreview = async (url, resultId, filename) => {
+    const type = getFileType(url);
+    const extractedFilename =
+      filename || url.split("/").pop().split("?")[0] || "document";
+
+    setPreview({
+      open: true,
+      url: null,
+      type,
+      filename: extractedFilename,
+      loading: true,
+    });
+
+    let finalUrl = url;
+    if (resultId) {
+      try {
+        const signedData = await getLabResultSignedUrl(resultId);
+        finalUrl = signedData.signedUrl || signedData.url || url;
+        if (signedData.filename) {
+          setPreview((prev) => ({ ...prev, filename: signedData.filename }));
+        }
+      } catch (error) {
+        console.warn("Signed URL not available, using direct URL:", error);
+      }
+    }
+    setPreview((prev) => ({ ...prev, url: finalUrl, loading: false }));
+  };
+
+  const closePreview = () =>
+    setPreview({
+      open: false,
+      url: null,
+      type: null,
+      filename: null,
+      loading: true,
+    });
 
   if (loading)
     return (
@@ -171,28 +339,6 @@ export default function MedicalHistory() {
               </div>
 
               <div className="flex gap-3 items-center">
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-white/5 text-white p-2 rounded-xl"
-                >
-                  <option value="all">All Types</option>
-                  <option value="Consultation">Consultation</option>
-                  <option value="Lab Test">Lab Test</option>
-                  <option value="Vaccination">Vaccination</option>
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-white/5 text-white p-2 rounded-xl"
-                >
-                  <option value="all">All Status</option>
-                  <option value="done">Done</option>
-                  <option value="requested">Requested</option>
-                  <option value="pending">Pending</option>
-                </select>
-
                 <input
                   type="month"
                   value={dateFrom}
@@ -294,12 +440,6 @@ export default function MedicalHistory() {
                   {data?.allergies || "—"}
                 </div>
               </div>
-              <div className="flex justify-between text-gray-300">
-                <div>Blood Type</div>
-                <div className="font-medium text-white">
-                  {data?.bloodType || "—"}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -316,8 +456,6 @@ export default function MedicalHistory() {
             <InfoRow label="Height (cm)" value={data?.heightCm} />
             <InfoRow label="Weight (kg)" value={data?.weightKg} />
             <InfoRow label="Medications" value={data?.medications || "—"} />
-            <InfoRow label="Smoking" value={data?.smokingStatus || "—"} />
-            <InfoRow label="Alcohol" value={data?.alcoholConsumption || "—"} />
             <InfoRow label="Notes" value={data?.notesDaySingIn || "—"} />
           </div>
 
@@ -329,43 +467,105 @@ export default function MedicalHistory() {
             {filteredLabResults.length === 0 ? (
               <div className="text-gray-400">No lab results found.</div>
             ) : (
-              <div className="space-y-4">
-                {filteredLabResults.map((lab, idx) => (
-                  <details key={idx} className="bg-white/3 p-4 rounded-xl">
-                    <summary className="flex justify-between cursor-pointer">
-                      <div>
-                        <div className="font-semibold">{lab.type}</div>
+              <>
+                <div className="space-y-4">
+                  {paginatedLabResults.map((lab, idx) => (
+                    <details key={idx} className="bg-white/3 p-4 rounded-xl">
+                      <summary
+                        className="flex justify-between cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const url = lab.resultFileUrl || lab.fileUrl;
+                          if (url) {
+                            openPreview(
+                              url,
+                              lab.id,
+                              lab.filename || lab.testName
+                            );
+                          }
+                        }}
+                      >
+                        <div>
+                          <div className="font-semibold">{lab.testName}</div>
+                        </div>
                         <div className="text-sm text-gray-300">{lab.date}</div>
-                      </div>
-                      <div className="text-sm text-gray-300">
-                        {lab.location || "—"}
-                      </div>
-                    </summary>
+                      </summary>
 
-                    <div className="mt-3 text-gray-200">
-                      {/* values: object of metrics */}
-                      {lab.values ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          {Object.entries(lab.values).map(([k, v]) => (
-                            <div key={k} className="p-2 bg-white/5 rounded-lg">
-                              <div className="text-xs text-gray-300">{k}</div>
-                              <div className="font-medium">{String(v)}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-gray-400">
-                          No numeric values available.
-                        </div>
-                      )}
+                      <div className="mt-3 text-gray-200">
+                        {/* values: object of metrics */}
+                        {lab.values ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(lab.values).map(([k, v]) => (
+                              <div
+                                key={k}
+                                className="p-2 bg-white/5 rounded-lg"
+                              >
+                                <div className="text-xs text-gray-300">{k}</div>
+                                <div className="font-medium">{String(v)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-gray-400">
+                            No numeric values available.
+                          </div>
+                        )}
 
-                      {lab.notes && (
-                        <p className="mt-3 text-gray-300">Notes: {lab.notes}</p>
-                      )}
-                    </div>
-                  </details>
-                ))}
-              </div>
+                        {lab.notes && (
+                          <p className="mt-3 text-gray-300">
+                            Notes: {lab.notes}
+                          </p>
+                        )}
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            className="text-[#67e8f9] hover:underline"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const url = lab.resultFileUrl || lab.fileUrl;
+                              if (url) {
+                                openPreview(
+                                  url,
+                                  lab.id,
+                                  lab.filename || lab.testName
+                                );
+                              }
+                            }}
+                          >
+                            View Result
+                          </button>
+                        </div>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+                {labResultPages > 1 && (
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() =>
+                        setLabResultPage(Math.max(1, labResultPage - 1))
+                      }
+                      disabled={labResultPage === 1}
+                      className="px-3 py-1 rounded bg-white/10 text-white disabled:opacity-50 hover:bg-white/20"
+                    >
+                      ←
+                    </button>
+                    <span className="text-sm text-gray-300">
+                      {labResultPage} / {labResultPages}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setLabResultPage(
+                          Math.min(labResultPages, labResultPage + 1)
+                        )
+                      }
+                      disabled={labResultPage === labResultPages}
+                      className="px-3 py-1 rounded bg-white/10 text-white disabled:opacity-50 hover:bg-white/20"
+                    >
+                      →
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -377,43 +577,168 @@ export default function MedicalHistory() {
             {filteredAppointments.length === 0 ? (
               <div className="text-gray-400">No appointments found.</div>
             ) : (
-              <div className="space-y-4">
-                {filteredAppointments.map((a) => (
-                  <div key={a.id} className="bg-white/3 p-4 rounded-xl">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-semibold">{a.type}</div>
-                        <div className="text-sm text-gray-300">{a.date}</div>
-                        <div className="text-sm text-gray-300">
-                          Doctor: {a.doctor || "—"}
+              <>
+                <div className="space-y-4">
+                  {paginatedAppointments.map((a) => (
+                    <div key={a.id} className="bg-white/3 p-4 rounded-xl">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold">{a.type}</div>
+                          <div className="text-sm text-gray-300">{a.date}</div>
+                          <div className="text-sm text-gray-300">
+                            Doctor: {a.doctor || "—"}
+                          </div>
+                        </div>
+                        <div className="text-sm">
+                          <span
+                            className={`px-3 py-1 rounded-full text-black font-semibold ${
+                              a.status === "done"
+                                ? "bg-green-300"
+                                : a.status === "requested"
+                                ? "bg-yellow-300"
+                                : "bg-red-300"
+                            }`}
+                          >
+                            {a.status}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-sm">
-                        <span
-                          className={`px-3 py-1 rounded-full text-black font-semibold ${
-                            a.status === "done"
-                              ? "bg-green-300"
-                              : a.status === "requested"
-                              ? "bg-yellow-300"
-                              : "bg-red-300"
-                          }`}
-                        >
-                          {a.status}
-                        </span>
-                      </div>
+                      {a.notes && (
+                        <p className="mt-3 text-gray-300">Notes: {a.notes}</p>
+                      )}
                     </div>
-                    {a.notes && (
-                      <p className="mt-3 text-gray-300">Notes: {a.notes}</p>
-                    )}
+                  ))}
+                </div>
+                {appointmentPages > 1 && (
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() =>
+                        setAppointmentPage(Math.max(1, appointmentPage - 1))
+                      }
+                      disabled={appointmentPage === 1}
+                      className="px-3 py-1 rounded bg-white/10 text-white disabled:opacity-50 hover:bg-white/20"
+                    >
+                      ←
+                    </button>
+                    <span className="text-sm text-gray-300">
+                      {appointmentPage} / {appointmentPages}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setAppointmentPage(
+                          Math.min(appointmentPages, appointmentPage + 1)
+                        )
+                      }
+                      disabled={appointmentPage === appointmentPages}
+                      className="px-3 py-1 rounded bg-white/10 text-white disabled:opacity-50 hover:bg-white/20"
+                    >
+                      →
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
       <Footer />
+
+      {preview.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white w-[95vw] max-w-5xl rounded shadow-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div>
+                <div className="font-medium">File Preview</div>
+                {preview.filename && (
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {preview.filename}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={closePreview}
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-0 relative">
+              {preview.loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                    <p className="mt-3 text-gray-600 text-sm">
+                      Loading preview...
+                    </p>
+                  </div>
+                </div>
+              )}
+              {preview.type === "image" && preview.url && (
+                <div className="max-h-[80vh] overflow-auto">
+                  <img
+                    src={preview.url}
+                    alt="Result preview"
+                    className="w-full h-auto object-contain"
+                    onLoad={() =>
+                      setPreview((prev) => ({ ...prev, loading: false }))
+                    }
+                    onError={() =>
+                      setPreview((prev) => ({ ...prev, loading: false }))
+                    }
+                  />
+                </div>
+              )}
+              {preview.type === "pdf" && preview.url && (
+                <iframe
+                  title="PDF preview"
+                  src={getEffectivePreviewUrl(preview.url, preview.type)}
+                  className="w-full h-[80vh]"
+                  onLoad={() =>
+                    setPreview((prev) => ({ ...prev, loading: false }))
+                  }
+                />
+              )}
+              {preview.type === "office" && preview.url && (
+                <iframe
+                  title="Document preview"
+                  src={`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+                    preview.url
+                  )}`}
+                  className="w-full h-[80vh]"
+                  onLoad={() =>
+                    setPreview((prev) => ({ ...prev, loading: false }))
+                  }
+                />
+              )}
+              {preview.type === "unknown" && (
+                <div className="p-6 text-center">
+                  <p className="text-gray-600 mb-4">
+                    Preview not available for this file type.
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <a
+                      href={preview.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-indigo-600 text-white rounded"
+                    >
+                      Open in new tab
+                    </a>
+                    <a
+                      href={preview.url}
+                      download
+                      className="px-4 py-2 border border-gray-300 rounded"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

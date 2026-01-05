@@ -1,5 +1,6 @@
 // src/pages/DoctorDashboard.jsx
 import React, { useState, useContext, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import {
   FiMenu,
@@ -12,6 +13,8 @@ import {
   FiBell,
   FiSearch,
   FiFileText,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import {
@@ -29,12 +32,25 @@ import {
 } from "recharts";
 import { AuthContext } from "../../context/AuthContext";
 import axios from "axios";
+import DoctorNotificationDropdown from "./DoctorNotificationDropdown";
 
 const DoctorDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useContext(AuthContext);
   const [refillRequests, setRefillRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
+  const [stats, setStats] = useState({
+    totalAppointments: 0,
+    completedAppointments: 0,
+    pendingAppointments: 0,
+    totalPatients: 0,
+    totalPrescriptions: 0,
+    activePrescriptions: 0,
+  });
   const API_URL = "http://localhost:8000";
   const username = localStorage.getItem("username") || user?.username;
   const role = localStorage.getItem("role") || user?.role;
@@ -54,12 +70,83 @@ const DoctorDashboard = () => {
   }
   console.log("Doctor username:", username);
   console.log("Doctor user from context:", user);
+
+  // Fetch dashboard statistics
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      if (!doctorId) return;
+
+      try {
+        const token = localStorage.getItem("token");
+        const headers = { Authorization: `Bearer ${token}` };
+
+        // Fetch appointments
+        const appointmentsResponse = await axios.get(
+          `${API_URL}/appointments/doctor/${doctorId}`,
+          { headers }
+        );
+        const appointments = appointmentsResponse.data;
+
+        // Calculate appointment stats
+        const totalAppointments = appointments.length;
+        const completedAppointments = appointments.filter(
+          (apt) => apt.status === "COMPLETED"
+        ).length;
+        const pendingAppointments = appointments.filter(
+          (apt) => apt.status === "PENDING"
+        ).length;
+
+        // Extract unique patients from appointments
+        const uniquePatientIds = new Set();
+        appointments.forEach((apt) => {
+          if (apt.client && apt.client.id) {
+            uniquePatientIds.add(apt.client.id);
+          }
+        });
+        const totalPatients = uniquePatientIds.size;
+
+        // Fetch prescriptions
+        let totalPrescriptions = 0;
+        let activePrescriptions = 0;
+        try {
+          const prescriptionsResponse = await axios.get(
+            `${API_URL}/prescriptions/doctor/${doctorId}`,
+            { headers }
+          );
+          const prescriptions = prescriptionsResponse.data;
+          totalPrescriptions = prescriptions.length;
+          activePrescriptions = prescriptions.filter(
+            (p) => p.status?.toLowerCase() === "active"
+          ).length;
+        } catch (err) {
+          console.log("Prescriptions endpoint not available:", err);
+        }
+
+        setStats({
+          totalAppointments,
+          completedAppointments,
+          pendingAppointments,
+          totalPatients,
+          totalPrescriptions,
+          activePrescriptions,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      }
+    };
+
+    fetchDashboardStats();
+  }, [doctorId]);
+
   // Fetch refill requests on mount
   useEffect(() => {
-    const fetchRefillRequests = async () => {
+    const fetchRefills = async () => {
+      if (!doctorId) return;
+
       try {
-        const response = await axios.get(
-          `${API_URL}/prescriptions/doctor/${doctorId}`,
+        // First, fetch doctor's appointments to get patient IDs
+        const appointmentsResponse = await axios.get(
+          `${API_URL}/appointments/doctor/${doctorId}`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -67,22 +154,62 @@ const DoctorDashboard = () => {
           }
         );
 
-        const requests = response.data.map((req) => ({
-          id: req.id,
-          patientName:
-            req.patient?.fullName || req.patient?.username || "Unknown Patient",
-          medication:
-            req.medicineName || req.medicationName || "Unknown Medicine",
-          requestedAt: new Date(
-            req.requestedAt || Date.now()
-          ).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          }),
-          status: req.status?.toLowerCase() || "pending",
-        }));
+        const appointments = appointmentsResponse.data;
+        const uniquePatientIds = new Set();
+        const patientMap = {};
 
-        setRefillRequests(requests);
+        // Extract unique patients and map IDs to names
+        appointments.forEach((apt) => {
+          if (apt.client && apt.client.id) {
+            uniquePatientIds.add(apt.client.id);
+            patientMap[apt.client.id] = {
+              name: apt.client.username || apt.client.fullName || "Patient",
+              email: apt.client.email,
+            };
+          }
+        });
+
+        // Fetch refill requests for all patients
+        if (uniquePatientIds.size > 0) {
+          const refillPromises = Array.from(uniquePatientIds).map((patientId) =>
+            axios
+              .get(`${API_URL}/prescriptions/doctor/${doctorId}`, {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+              })
+              .then((res) => {
+                const data = Array.isArray(res.data) ? res.data : [];
+                return data.map((refill) => ({
+                  ...refill,
+                  patientId,
+                  patientName: patientMap[patientId]?.name || "Patient",
+                }));
+              })
+              .catch(() => [])
+          );
+
+          const allRefills = await Promise.all(refillPromises);
+          const flatRefills = allRefills.flat();
+
+          // Transform refills into request format
+          const requests = flatRefills.map((refill) => ({
+            id: refill.id,
+            patientName: refill.patientName,
+            medication: refill.medicineName || "Medication",
+            requestedAt: new Date(
+              refill.createdAt || Date.now()
+            ).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            status: refill.status?.toLowerCase() || "pending",
+          }));
+
+          setRefillRequests(requests);
+        } else {
+          setRefillRequests([]);
+        }
       } catch (err) {
         console.error("Failed to fetch refill requests:", err);
         // Fallback demo data if API fails
@@ -107,31 +234,10 @@ const DoctorDashboard = () => {
       }
     };
 
-    fetchRefillRequests();
-  }, []);
+    fetchRefills();
+  }, [doctorId]);
 
   // Handle Approve / Reject
-  const handleRefillAction = async (requestId, action) => {
-    try {
-      await axios.post(
-        `${API_URL}/prescriptions/refill/update/${requestId}/${doctorId}`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        }
-      );
-
-      setRefillRequests((prev) =>
-        prev.map((req) =>
-          req.id === requestId
-            ? { ...req, status: action === "approve" ? "approved" : "rejected" }
-            : req
-        )
-      );
-    } catch (err) {
-      alert(`Failed to ${action} request. Try again.`);
-    }
-  };
 
   const handleLogout = () => {
     logout();
@@ -143,30 +249,54 @@ const DoctorDashboard = () => {
   ).length;
 
   const menuItems = [
-    { icon: FiCalendar, label: "Overview", active: true },
-    { icon: FiCalendar, label: "Appointments", count: 48 },
-    { icon: FiUsers, label: "My Patients" },
-    { icon: FiFileText, label: "Prescriptions", count: pendingCount },
-    { icon: FiMessageSquare, label: "Messages", count: 5 },
-    { icon: FiSettings, label: "Settings" },
+    {
+      icon: FiCalendar,
+      label: "Overview",
+      path: "/doctor/dashboard",
+      count: 0,
+    },
+    {
+      icon: FiCalendar,
+      label: "Appointments",
+      path: "/doctor/appointments",
+      count: stats.totalAppointments,
+    },
+    {
+      icon: FiUsers,
+      label: "My Patients",
+      path: "/doctor/patients",
+      count: stats.totalPatients,
+    },
+    {
+      icon: FiFileText,
+      label: "Prescriptions",
+      path: "/doctor/prescriptions",
+      count: stats.totalPrescriptions,
+    },
+    {
+      icon: FiMessageSquare,
+      label: "Messages",
+      path: "/DoctorMessages",
+      count: 0,
+    },
+    { icon: FiSettings, label: "Settings", path: "/doctor/settings", count: 0 },
     { icon: FiLogOut, label: "Logout", danger: true, onClick: handleLogout },
   ];
 
-  // Demo charts data
+  // Charts data based on stats
   const patientTypeData = [
-    { name: "New Patient", value: 34, color: "#4addbf" },
-    { name: "Old Patient", value: 84, color: "#8b5cf6" },
-    { name: "Online", value: 18, color: "#10b981" },
+    { name: "Completed", value: stats.completedAppointments, color: "#4addbf" },
+    { name: "Pending", value: stats.pendingAppointments, color: "#8b5cf6" },
+    { name: "Total Patients", value: stats.totalPatients, color: "#10b981" },
   ];
 
   const patientGrowthData = [
-    { day: "Mon", patients: 38 },
-    { day: "Tue", patients: 42 },
-    { day: "Wed", patients: 48 },
-    { day: "Thu", patients: 45 },
-    { day: "Fri", patients: 52 },
-    { day: "Sat", patients: 40 },
-    { day: "Sun", patients: 35 },
+    { day: "Total Appointments", value: stats.totalAppointments },
+    { day: "Completed", value: stats.completedAppointments },
+    { day: "Pending", value: stats.pendingAppointments },
+    { day: "Total Prescriptions", value: stats.totalPrescriptions },
+    { day: "Active Prescriptions", value: stats.activePrescriptions },
+    { day: "Total Patients", value: stats.totalPatients },
   ];
 
   return (
@@ -198,7 +328,6 @@ const DoctorDashboard = () => {
               <h3 className="font-semibold text-lg">
                 Dr. {username || "Henry"}
               </h3>
-              <p className="text-white/60 text-sm">MBBS • FCPS • MD</p>
             </div>
           </div>
         </div>
@@ -207,9 +336,16 @@ const DoctorDashboard = () => {
           {menuItems.map((item, i) => (
             <button
               key={i}
-              onClick={item.onClick}
+              onClick={() => {
+                if (item.onClick) {
+                  item.onClick();
+                } else if (item.path) {
+                  navigate(item.path);
+                  setSidebarOpen(false);
+                }
+              }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl transition-all ${
-                item.active
+                location.pathname === item.path
                   ? "bg-[#4addbf] text-black font-medium shadow-lg"
                   : "hover:bg-white/10"
               } ${item.danger ? "text-red-400 hover:bg-red-400/10" : ""}`}
@@ -248,10 +384,7 @@ const DoctorDashboard = () => {
                   className="pl-12 pr-6 py-3 w-96 bg-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4addbf]"
                 />
               </div>
-              <button className="relative">
-                <FiBell size={24} />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-              </button>
+              <DoctorNotificationDropdown />
               <span className="text-sm text-gray-600">
                 {new Date().toLocaleDateString("en-GB", {
                   day: "numeric",
@@ -281,26 +414,26 @@ const DoctorDashboard = () => {
           <div className="grid grid-cols-4 gap-6 mb-8">
             {[
               {
-                label: "Appointments",
-                value: 48,
+                label: "Total Appointments",
+                value: stats.totalAppointments,
                 icon: FiCalendar,
                 color: "from-blue-500 to-blue-600",
               },
               {
-                label: "Online Consults",
-                value: 18,
-                icon: FiUsers,
+                label: "Completed",
+                value: stats.completedAppointments,
+                icon: FiCalendar,
                 color: "from-green-500 to-emerald-600",
               },
               {
-                label: "Pending Refills",
-                value: pendingCount,
+                label: "Active Prescriptions",
+                value: stats.activePrescriptions,
                 icon: FiFileText,
                 color: "from-purple-500 to-purple-600",
               },
               {
                 label: "Total Patients",
-                value: 136,
+                value: stats.totalPatients,
                 icon: FiUsers,
                 color: "from-cyan-500 to-cyan-600",
               },
@@ -327,9 +460,7 @@ const DoctorDashboard = () => {
           <div className="grid grid-cols-12 gap-6">
             <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold">
-                  Prescription Refill Requests
-                </h3>
+                <h3 className="text-xl font-bold">Prrescriptions</h3>
                 <span className="text-[#4addbf] text-sm font-medium">
                   {pendingCount} pending
                 </span>
@@ -339,66 +470,110 @@ const DoctorDashboard = () => {
                 <div className="text-center py-12 text-gray-500">
                   Loading requests...
                 </div>
-              ) : refillRequests.length === 0 ? (
+              ) : refillRequests.filter((r) => r.status === "pending")
+                  .length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   No refill requests
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {refillRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-200"
-                    >
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 bg-gradient-to-br from-[#4addbf] to-[#39c6a5] rounded-full flex items-center justify-center text-xl font-bold text-black">
-                          {req.patientName[0]}
+                <>
+                  <div className="space-y-4">
+                    {refillRequests
+                      .filter((r) => r.status === "pending")
+                      .slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage
+                      )
+                      .map((req) => (
+                        <div
+                          key={req.id}
+                          className="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-200"
+                        >
+                          <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 bg-gradient-to-br from-[#4addbf] to-[#39c6a5] rounded-full flex items-center justify-center text-xl font-bold text-black">
+                              {req.patientName[0]}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-lg">
+                                {req.patientName}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {req.medication} • Requested on{" "}
+                                {req.requestedAt}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-lg">
-                            {req.patientName}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {req.medication} • Requested on {req.requestedAt}
-                          </p>
-                        </div>
-                      </div>
+                      ))}
+                  </div>
 
-                      <div className="flex items-center gap-3">
-                        {req.status === "pending" ? (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleRefillAction(req.id, "reject")
-                              }
-                              className="px-5 py-2.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleRefillAction(req.id, "approve")
-                              }
-                              className="px-5 py-2.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition"
-                            >
-                              Approve
-                            </button>
-                          </>
-                        ) : (
-                          <span
-                            className={`px-6 py-2.5 rounded-lg font-bold text-sm ${
-                              req.status === "approved"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {req.status.toUpperCase()}
-                          </span>
-                        )}
+                  {/* Pagination Controls */}
+                  {refillRequests.filter((r) => r.status === "pending").length >
+                    itemsPerPage && (
+                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                        {Math.min(
+                          currentPage * itemsPerPage,
+                          refillRequests.filter((r) => r.status === "pending")
+                            .length
+                        )}{" "}
+                        of{" "}
+                        {
+                          refillRequests.filter((r) => r.status === "pending")
+                            .length
+                        }{" "}
+                        requests
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(1, prev - 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <FiChevronLeft size={20} />
+                        </button>
+                        <span className="px-4 py-2 bg-[#4addbf] text-black rounded-lg font-medium">
+                          {currentPage}
+                        </span>
+                        <span className="text-gray-600">
+                          of{" "}
+                          {Math.ceil(
+                            refillRequests.filter((r) => r.status === "pending")
+                              .length / itemsPerPage
+                          )}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(
+                                Math.ceil(
+                                  refillRequests.filter(
+                                    (r) => r.status === "pending"
+                                  ).length / itemsPerPage
+                                ),
+                                prev + 1
+                              )
+                            )
+                          }
+                          disabled={
+                            currentPage ===
+                            Math.ceil(
+                              refillRequests.filter(
+                                (r) => r.status === "pending"
+                              ).length / itemsPerPage
+                            )
+                          }
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <FiChevronRight size={20} />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -429,7 +604,7 @@ const DoctorDashboard = () => {
 
           {/* Growth Chart */}
           <div className="mt-6 bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-xl font-bold mb-6">Patient Growth This Week</h3>
+            <h3 className="text-xl font-bold mb-6">Dashboard Statistics</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={patientGrowthData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -438,7 +613,7 @@ const DoctorDashboard = () => {
                 <Tooltip />
                 <Line
                   type="monotone"
-                  dataKey="patients"
+                  dataKey="value"
                   stroke="#4addbf"
                   strokeWidth={4}
                   dot={{ fill: "#4addbf", r: 6 }}

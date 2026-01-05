@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import Navbar from "../Navbar";
 import Footer from "../Footer";
 import { LanguageContext } from "../../context/LanguageContext";
-import { getAllDoctors } from "../../services/api";
+import { getAllDoctors, getAllLabs } from "../../services/api";
 import {
   geocodeAddress,
   getCurrentLocation,
@@ -56,7 +56,6 @@ const getIconSVG = (iconKey) => {
 };
 
 const ROLE_ICONS = {
-  CLIENT: { color: "#6b7280", icon: "client" },
   DOCTOR: { color: "#4addbf", icon: "doctor" },
   HOSPITAL: { color: "#ef4444", icon: "hospital" },
   LAB: { color: "#3b82f6", icon: "lab" },
@@ -78,9 +77,11 @@ const MapPage = () => {
 
   const [mapCenter, setMapCenter] = useState([36.8065, 10.1815]); // Tunis
   const [filterDropdown, setFilterDropdown] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState(
-    JSON.parse(localStorage.getItem("selectedFilters")) || []
-  );
+  const [selectedFilters, setSelectedFilters] = useState(() => {
+    // Start with no filters to show all providers initially
+    // localStorage.getItem("selectedFilters") can be restored later if needed
+    return [];
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -161,16 +162,25 @@ const MapPage = () => {
   }, [selectedFilters]);
 
   useEffect(() => {
-    const fetchDoctors = async () => {
+    const fetchAllProviders = async () => {
       try {
         setLoading(true);
-        const doctors = await getAllDoctors();
+        const [doctors, labs] = await Promise.all([
+          getAllDoctors(),
+          getAllLabs(),
+        ]);
 
+        console.log("Fetched doctors:", doctors);
+        console.log("Fetched labs:", labs);
+        console.log(`Total labs fetched: ${labs?.length || 0}`);
+
+        // Process doctors (has user.username structure)
         const doctorsWithCoords = await Promise.all(
           doctors.map(async (doctor) => {
             if (!doctor.latitude || !doctor.longitude) {
-              if (doctor.address) {
-                const coords = await geocodeAddress(doctor.address);
+              const address = doctor.address || "36.8065, 10.1815";
+              if (address) {
+                const coords = await geocodeAddress(address);
                 doctor.latitude = coords?.lat || 36.8065;
                 doctor.longitude = coords?.lng || 10.1815;
               } else {
@@ -182,29 +192,58 @@ const MapPage = () => {
           })
         );
 
-        setUsers(doctorsWithCoords);
-        setFilteredUsers(doctorsWithCoords);
+        // Process labs (has name field, location address)
+        const labsWithCoords = await Promise.all(
+          (labs || []).map(async (lab) => {
+            if (!lab.latitude || !lab.longitude) {
+              const address = lab.address || lab.location || "36.8065, 10.1815";
+              if (address) {
+                const coords = await geocodeAddress(address);
+                lab.latitude = coords?.lat || 36.8065;
+                lab.longitude = coords?.lng || 10.1815;
+              } else {
+                lab.latitude = 36.8065;
+                lab.longitude = 10.1815;
+              }
+            }
+            return lab;
+          })
+        );
+
+        // Combine all providers
+        const allProviders = [...doctorsWithCoords, ...labsWithCoords];
+        console.log("Total providers with coordinates:", allProviders.length);
+        setUsers(allProviders);
+        setFilteredUsers(allProviders);
       } catch (error) {
-        console.error("Error fetching doctors:", error);
+        console.error("Error fetching providers:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDoctors();
+    fetchAllProviders();
   }, []);
 
   useEffect(() => {
     let filtered = [...users];
+    console.log("Initial users count:", users.length);
+    console.log("Users:", users);
 
     // Filter by search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (u) =>
-          (u.username && u.username.toLowerCase().includes(q)) ||
-          (u.email && u.email.toLowerCase().includes(q))
-      );
+      filtered = filtered.filter((u) => {
+        const role = u.role || u.user?.role;
+        const isLab = role === "LAB" || role === "Labs";
+        const name = isLab ? u.name : u.user?.username;
+        const email = u.email || u.user?.email;
+        return (
+          (name && name.toLowerCase().includes(q)) ||
+          (email && email.toLowerCase().includes(q))
+        );
+      });
+      console.log("After search filter:", filtered.length);
     }
 
     // Filter by selected roles
@@ -213,22 +252,38 @@ const MapPage = () => {
         .filter((f) => selectedFilters.includes(f.key) && f.role)
         .map((f) => f.role);
 
-      if (selectedRoles.length > 0)
-        filtered = filtered.filter((u) => selectedRoles.includes(u.role));
+      console.log("Selected filters:", selectedFilters);
+      console.log("Selected roles:", selectedRoles);
 
-      // Filter by doctor specialty
+      if (selectedRoles.length > 0) {
+        filtered = filtered.filter((u) => {
+          const role = u.role || u.user?.role;
+          return selectedRoles.some(
+            (selectedRole) =>
+              role === selectedRole ||
+              (selectedRole === "LAB" && role === "Labs")
+          );
+        });
+        console.log("After role filter:", filtered.length);
+      }
+
+      // Filter by doctor specialty (only apply to doctors)
       const selectedSpecs = doctorSpecialties
         .filter((s) => selectedFilters.includes(s.key))
         .map((s) => s.label.toLowerCase());
       if (selectedSpecs.length > 0) {
-        filtered = filtered.filter(
-          (u) =>
-            u.role === "DOCTOR" &&
-            u.specialty &&
-            selectedSpecs.some((spec) =>
-              u.specialty.toLowerCase().includes(spec)
-            )
-        );
+        // Only filter doctors; let labs through
+        filtered = filtered.filter((u) => {
+          const role = u.role || u.user?.role;
+          return (
+            role !== "DOCTOR" ||
+            (u.specialty &&
+              selectedSpecs.some((spec) =>
+                u.specialty.toLowerCase().includes(spec)
+              ))
+          );
+        });
+        console.log("After specialty filter:", filtered.length);
       }
 
       // Near me
@@ -248,9 +303,12 @@ const MapPage = () => {
           }))
           .filter((u) => u.distance <= 10)
           .sort((a, b) => a.distance - b.distance);
+        console.log("After nearMe filter:", filtered.length);
       }
     }
 
+    console.log("Final filtered users count:", filtered.length);
+    console.log("Final filtered users:", filtered);
     setFilteredUsers(filtered);
   }, [
     selectedFilters,
@@ -407,47 +465,58 @@ const MapPage = () => {
                 </Marker>
               )}
 
-              {filteredUsers.map((user) => {
-                if (!user.latitude || !user.longitude) return null;
+              {filteredUsers.map((provider) => {
+                // Log providers without coordinates
+                if (!provider.latitude || !provider.longitude) {
+                  console.warn(
+                    "Provider missing coordinates:",
+                    provider.name || provider.user?.username,
+                    { lat: provider.latitude, lng: provider.longitude }
+                  );
+                  return null;
+                }
+
+                // Get role from either top-level or nested
+                const role = provider.role || provider.user?.role;
+                const isLab = role === "LAB" || role === "Labs";
+
+                const name = isLab ? provider.name : provider.user?.username;
+                const address =
+                  provider.address ||
+                  provider.location ||
+                  "Address not available";
+                const specialty =
+                  provider.specialty ||
+                  provider.specialization ||
+                  (isLab && "Laboratory Services");
+
                 return (
                   <Marker
-                    key={`doctor-${user.id}`} // doctor.id is unique
-                    position={[user.latitude, user.longitude]}
-                    icon={getMarkerIcon(user.role)}
+                    key={`provider-${provider.id}`}
+                    position={[provider.latitude, provider.longitude]}
+                    icon={getMarkerIcon(role)}
                   >
                     <Popup>
-                      <div className="text-center p-2">
-                        <h3 className="font-bold text-lg mb-1">
-                          {user.username}
-                        </h3>
+                      <div className="text-center p-2 min-w-max">
+                        <h3 className="font-bold text-lg mb-1">{name}</h3>
                         <p className="text-sm text-gray-600 mb-1">
-                          {t(`map.role.${user.role?.toLowerCase()}`, user.role)}
+                          {t(`map.role.${role?.toLowerCase()}`, role)}
                         </p>
-                        {user.specialty && (
+                        {specialty && (
                           <p className="text-sm text-gray-500 mb-2">
-                            {user.specialty}
+                            {specialty}
                           </p>
                         )}
-                        {user.address && (
+                        {address && (
                           <p className="text-xs text-gray-500 mb-2">
-                            {user.address}
+                            {address}
                           </p>
                         )}
-                        {user.distance && (
+                        {provider.distance && (
                           <p className="text-xs text-blue-600 mb-2">
-                            {user.distance.toFixed(2)} km away
+                            {provider.distance.toFixed(2)} km away
                           </p>
                         )}
-                        <div className="flex gap-2 mt-2">
-                          <button className="bg-[#4addbf] text-white px-3 py-1 rounded-lg text-sm hover:bg-[#39c6a5] transition-colors">
-                            {t("map.popup.viewProfile", "View Profile")}
-                          </button>
-                          {user.role === "DOCTOR" && (
-                            <button className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-600 transition-colors">
-                              {t("map.popup.bookAppointment", "Book")}
-                            </button>
-                          )}
-                        </div>
                       </div>
                     </Popup>
                   </Marker>

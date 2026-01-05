@@ -1,64 +1,11 @@
-import React, { useMemo, useState } from "react";
-
-/**
- * LabDashboard.js
- * Simple laboratory dashboard using Tailwind CSS.
- * Place this file at /src/Components/Lab/LabDashboard.js
- *
- * Notes:
- * - This is a self-contained React component with sample data and basic UI.
- * - Tailwind CSS must be configured in your project for styling to work.
- */
-
-const sampleStats = {
-  testsToday: 128,
-  pending: 24,
-  completed: 1024,
-  revenue: 8520,
-};
-
-const recentTests = [
-  {
-    id: "LT-1001",
-    patient: "Alice Johnson",
-    test: "Complete Blood Count",
-    date: "2025-11-20",
-    time: "09:30",
-    status: "Completed",
-  },
-  {
-    id: "LT-1002",
-    patient: "Robert Smith",
-    test: "Lipid Profile",
-    date: "2025-11-20",
-    time: "10:15",
-    status: "Pending",
-  },
-  {
-    id: "LT-1003",
-    patient: "Maria Gomez",
-    test: "COVID-19 PCR",
-    date: "2025-11-19",
-    time: "16:40",
-    status: "Completed",
-  },
-  {
-    id: "LT-1004",
-    patient: "Chen Wei",
-    test: "Urinalysis",
-    date: "2025-11-20",
-    time: "11:05",
-    status: "In Progress",
-  },
-];
-
-const statusColor = (s) =>
-  ({
-    Completed: "bg-green-100 text-green-800",
-    Pending: "bg-yellow-100 text-yellow-800",
-    "In Progress": "bg-blue-100 text-blue-800",
-    Cancelled: "bg-red-100 text-red-800",
-  }[s] || "bg-gray-100 text-gray-800");
+import React, { useMemo, useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext";
+import {
+  getAllLabs,
+  getLabResultsByLab,
+  getLabResultSignedUrl,
+} from "../../services/api";
 
 function Sparkline({
   data = [],
@@ -101,82 +48,310 @@ function Sparkline({
 }
 
 export default function LabDashboard() {
+  const { user, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
+  const [labData, setLabData] = useState(null);
+  const [labs, setLabs] = useState([]);
+  const [labResults, setLabResults] = useState([]);
+  const [preview, setPreview] = useState({
+    open: false,
+    url: null,
+    type: null,
+    filename: null,
+    loading: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    testsToday: 0,
+    pending: 0,
+    completed: 0,
+  });
+
+  // Fetch lab data and tests on component mount
+  useEffect(() => {
+    const fetchLabData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch all labs
+        const labsData = await getAllLabs();
+        setLabs(labsData);
+
+        // Resolve Lab entity ID by matching token user to lab.user.id
+        let currentLabId = null;
+        let currentLabEntity = null;
+        if (user?.userId && Array.isArray(labsData) && labsData.length) {
+          const matched = labsData.find((l) => l?.user?.id === user.userId);
+          if (matched) {
+            currentLabEntity = matched;
+            currentLabId = matched.id;
+          }
+        }
+        if (!currentLabId && labsData.length > 0) {
+          currentLabEntity = labsData[0];
+          currentLabId = labsData[0].id;
+        }
+        setLabData(currentLabEntity);
+
+        // Fetch lab results for the current lab
+        try {
+          if (currentLabId) {
+            const results = await getLabResultsByLab(currentLabId);
+            setLabResults(Array.isArray(results) ? results : []);
+
+            // Basic stats from lab results
+            const today = new Date().toISOString().split("T")[0];
+            const todayResults = results.filter((r) =>
+              r.date?.startsWith(today)
+            );
+            setStats((prev) => ({
+              ...prev,
+              testsToday: todayResults.length,
+              completed: results.length,
+              pending: 0,
+            }));
+          } else {
+            setLabResults([]);
+            setStats({ testsToday: 0, pending: 0, completed: 0 });
+          }
+        } catch (resultsError) {
+          console.error("Error fetching lab results:", resultsError);
+          setLabResults([]);
+          setStats({ testsToday: 0, pending: 0, completed: 0 });
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching lab data:", err);
+        setError("Failed to load lab data. Please try again.");
+        setLoading(false);
+      }
+    };
+
+    fetchLabData();
+  }, [user]);
 
   const filtered = useMemo(() => {
-    return recentTests.filter((t) => {
-      const matchesFilter = filter === "All" || t.status === filter;
+    const dataSource = labResults;
+    return dataSource.filter((r) => {
+      const q = query.toLowerCase();
+      const patientName = (
+        r.client?.username ||
+        r.client?.name ||
+        r.clientName ||
+        ""
+      ).toLowerCase();
+      const testName = (r.testName || r.test || "").toLowerCase();
       const matchesQuery =
-        !query ||
-        t.id.toLowerCase().includes(query.toLowerCase()) ||
-        t.patient.toLowerCase().includes(query.toLowerCase()) ||
-        t.test.toLowerCase().includes(query.toLowerCase());
-      return matchesFilter && matchesQuery;
+        !q ||
+        r.id?.toString().toLowerCase().includes(q) ||
+        testName.includes(q) ||
+        patientName.includes(q);
+      return matchesQuery;
     });
-  }, [query, filter]);
+  }, [query, labResults]);
 
   const sparkData = [10, 18, 14, 22, 30, 27, 32, 28];
+
+  const totals = useMemo(() => {
+    const totalResults = labResults.length;
+    const uniquePatients = new Set(
+      labResults.map((r) => r.client?.id || r.clientId || r.client?.username)
+    ).size;
+    const uniqueDoctors = new Set(
+      labResults.map((r) => r.doctor?.id || r.doctorId || r.doctor?.username)
+    ).size;
+    return { totalResults, uniquePatients, uniqueDoctors };
+  }, [labResults]);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
+  const getFileType = (url) => {
+    if (!url) return "unknown";
+    const clean = url.split("?")[0];
+    const ext = (clean.split(".").pop() || "").toLowerCase();
+
+    // Check extension first
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext))
+      return "image";
+    if (ext === "pdf") return "pdf";
+    if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
+      return "office";
+
+    // For Cloudinary URLs without extension, check folder/path patterns
+    if (url.includes("cloudinary.com") && url.includes("/raw/upload/")) {
+      // Assume PDFs are in lab_results folder or similar
+      if (url.includes("lab_results") || url.includes("file_")) {
+        return "pdf";
+      }
+    }
+
+    return "unknown";
+  };
+
+  const getEffectivePreviewUrl = (url, type) => {
+    if (!url) return url;
+
+    let effectiveUrl = url;
+
+    // Handle Cloudinary URLs
+    if (url.includes("res.cloudinary.com")) {
+      // Convert image/upload to raw/upload for PDFs
+      if (type === "pdf" && url.includes("/image/upload/")) {
+        effectiveUrl = url.replace("/image/upload/", "/raw/upload/");
+      }
+
+      // Append .pdf extension if missing for raw uploads
+      if (type === "pdf" && effectiveUrl.includes("/raw/upload/")) {
+        const hasExtension = /\.(pdf|png|jpg|jpeg|doc|docx)$/i.test(
+          effectiveUrl.split("?")[0]
+        );
+        if (!hasExtension) {
+          const [baseUrl, queryString] = effectiveUrl.split("?");
+          effectiveUrl = queryString
+            ? `${baseUrl}.pdf?${queryString}`
+            : `${baseUrl}.pdf`;
+        }
+      }
+    }
+
+    // Add PDF viewer parameters
+    if (type === "pdf") {
+      const separator = effectiveUrl.includes("?") ? "&" : "#";
+      return `${effectiveUrl}${separator}toolbar=1&zoom=page-width`;
+    }
+
+    return effectiveUrl;
+  };
+
+  const openPreview = async (url, resultId, filename) => {
+    const type = getFileType(url);
+    const extractedFilename =
+      filename || url.split("/").pop().split("?")[0] || "document";
+
+    setPreview({
+      open: true,
+      url: null,
+      type,
+      filename: extractedFilename,
+      loading: true,
+    });
+
+    // Try to fetch signed URL if resultId is provided
+    let finalUrl = url;
+    if (resultId) {
+      try {
+        const signedData = await getLabResultSignedUrl(resultId);
+        finalUrl = signedData.signedUrl || signedData.url || url;
+        if (signedData.filename) {
+          setPreview((prev) => ({ ...prev, filename: signedData.filename }));
+        }
+      } catch (error) {
+        console.warn("Signed URL not available, using direct URL:", error);
+        // Fallback to direct URL
+      }
+    }
+
+    setPreview((prev) => ({ ...prev, url: finalUrl, loading: false }));
+  };
+
+  const closePreview = () =>
+    setPreview({
+      open: false,
+      url: null,
+      type: null,
+      filename: null,
+      loading: true,
+    });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading lab data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-xl mb-4">⚠️</div>
+          <p className="text-gray-700">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-64 bg-white border-r border-gray-200 min-h-screen p-6 hidden md:block">
-          <div className="text-2xl font-semibold mb-6">MedLink Lab</div>
+          <div className="text-2xl font-semibold mb-6">
+            {labData?.name || "MedLink Lab"}
+          </div>
           <nav className="space-y-2 text-sm">
             <a
-              className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100"
-              href="#dashboard"
+              className="flex items-center gap-3 px-3 py-2 rounded bg-indigo-50 text-indigo-600"
+              href="/Lab-Dashboard"
             >
-              <svg
-                className="w-5 h-5 text-indigo-600"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M3 3h14v4H3V3zm0 6h8v8H3V9z" />
               </svg>
               Dashboard
             </a>
             <a
               className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100"
-              href="#tests"
+              href="/Upload-Report"
             >
               <svg
                 className="w-5 h-5 text-gray-500"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
-                <path d="M9 2v6H3l6-6zM11 2l6 6h-6V2zM3 8l6 6H3V8zm14 0v6h-6l6-6z" />
+                <path d="M10 2L3 9h4v7h6V9h4l-7-7z" />
               </svg>
-              Tests
+              Upload Report
             </a>
             <a
               className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100"
-              href="#patients"
+              href="/Lab-Settings"
             >
               <svg
                 className="w-5 h-5 text-gray-500"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
-                <path d="M10 2a4 4 0 110 8 4 4 0 010-8zM2 18a8 8 0 1116 0H2z" />
+                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9V9h2v4zm0-6H9V5h2v2z" />
               </svg>
-              Patients
+              Settings
             </a>
-            <a
-              className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100"
-              href="#reports"
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-3 py-2 rounded hover:bg-red-50 hover:text-red-600 w-full text-left mt-4"
             >
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M3 3h14v12H3zM7 7h6v2H7V7z" />
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 3h8v2H5v10h6v2H3V3zm10 4l5 5-5 5v-3H7v-4h6V7z" />
               </svg>
-              Reports
-            </a>
+              Logout
+            </button>
           </nav>
         </aside>
 
@@ -213,9 +388,11 @@ export default function LabDashboard() {
                 />
               </div>
               <div className="bg-white border border-gray-200 rounded-full px-3 py-1 flex items-center gap-3">
-                <span className="text-sm">Admin</span>
+                <span className="text-sm">
+                  {user?.username || user?.email || "Lab User"}
+                </span>
                 <div className="w-8 h-8 bg-indigo-600 rounded-full text-white flex items-center justify-center text-sm">
-                  A
+                  {(user?.username || user?.email || "L")[0].toUpperCase()}
                 </div>
               </div>
             </div>
@@ -228,7 +405,7 @@ export default function LabDashboard() {
                 <div>
                   <div className="text-xs text-gray-500">Tests Today</div>
                   <div className="text-2xl font-semibold">
-                    {sampleStats.testsToday}
+                    {stats.testsToday}
                   </div>
                 </div>
                 <div className="p-2 bg-indigo-50 rounded">
@@ -249,24 +426,19 @@ export default function LabDashboard() {
             <div className="bg-white p-4 rounded shadow-sm border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-gray-500">Pending</div>
+                  <div className="text-xs text-gray-500">All Tests</div>
                   <div className="text-2xl font-semibold">
-                    {sampleStats.pending}
+                    {totals.totalResults}
                   </div>
                 </div>
-                <div className="p-2 bg-yellow-50 rounded">
+                <div className="p-2 bg-blue-50 rounded">
                   <svg
-                    className="w-6 h-6 text-yellow-600"
+                    className="w-6 h-6 text-blue-600"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
-                    <path d="M10 2a6 6 0 100 12A6 6 0 0010 2z" />
+                    <path d="M4 4h12v2H4V4zm0 4h12v2H4V8zm0 4h12v2H4v-2z" />
                   </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-xs text-gray-400">
-                  Avg turnaround: 4h 20m
                 </div>
               </div>
             </div>
@@ -274,9 +446,9 @@ export default function LabDashboard() {
             <div className="bg-white p-4 rounded shadow-sm border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-gray-500">Completed</div>
+                  <div className="text-xs text-gray-500">Unique Patients</div>
                   <div className="text-2xl font-semibold">
-                    {sampleStats.completed}
+                    {totals.uniquePatients}
                   </div>
                 </div>
                 <div className="p-2 bg-green-50 rounded">
@@ -285,36 +457,28 @@ export default function LabDashboard() {
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
-                    <path d="M7 10l3 3 7-7-1.5-1.5L10 10 8.5 8.5 7 10z" />
+                    <path d="M10 10a4 4 0 110-8 4 4 0 010 8zm0 2c-3.33 0-6 1.34-6 3v1h12v-1c0-1.66-2.67-3-6-3z" />
                   </svg>
                 </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-xs text-gray-400">This month +12%</div>
               </div>
             </div>
 
             <div className="bg-white p-4 rounded shadow-sm border border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-gray-500">Revenue</div>
+                  <div className="text-xs text-gray-500">Unique Doctors</div>
                   <div className="text-2xl font-semibold">
-                    ${sampleStats.revenue}
+                    {totals.uniqueDoctors}
                   </div>
                 </div>
-                <div className="p-2 bg-indigo-50 rounded">
+                <div className="p-2 bg-yellow-50 rounded">
                   <svg
-                    className="w-6 h-6 text-indigo-600"
+                    className="w-6 h-6 text-yellow-600"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
-                    <path d="M10 2l3 6-3 1-3-1 3-6zM3 12h14v6H3v-6z" />
+                    <path d="M10 2a4 4 0 110 8 4 4 0 010-8zm0 10c-3.33 0-6 1.34-6 3v1h12v-1c0-1.66-2.67-3-6-3z" />
                   </svg>
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-xs text-gray-400">
-                  Projected next month $9.2k
                 </div>
               </div>
             </div>
@@ -324,59 +488,62 @@ export default function LabDashboard() {
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-white rounded border border-gray-100 shadow-sm p-4">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium">Recent Tests</h2>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    className="border border-gray-200 rounded px-2 py-1 text-sm bg-white"
-                  >
-                    <option>All</option>
-                    <option>Pending</option>
-                    <option>In Progress</option>
-                    <option>Completed</option>
-                    <option>Cancelled</option>
-                  </select>
-                </div>
+                <h2 className="text-lg font-medium">Lab Results</h2>
+                <div className="flex items-center gap-2"></div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-gray-500">
                     <tr>
-                      <th className="py-2">Test ID</th>
-                      <th className="py-2">Patient</th>
+                      <th className="py-2">LT-id</th>
+                      <th className="py-2">Patient name</th>
                       <th className="py-2">Test</th>
                       <th className="py-2">Date</th>
-                      <th className="py-2">Status</th>
                       <th className="py-2">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((t) => (
-                      <tr key={t.id} className="border-t">
-                        <td className="py-3 text-sm text-gray-700">{t.id}</td>
-                        <td className="py-3">{t.patient}</td>
-                        <td className="py-3">{t.test}</td>
-                        <td className="py-3 text-gray-500">
-                          {t.date} · {t.time}
-                        </td>
+                    {filtered.map((r, index) => (
+                      <tr
+                        key={r.id || index}
+                        className="border-t hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          const url = r.resultFileUrl || r.fileUrl;
+                          if (url) {
+                            openPreview(url, r.id, r.filename || r.testName);
+                          } else {
+                            alert("No file available for this result");
+                          }
+                        }}
+                      >
+                        <td className="py-3 text-sm text-gray-700">{`LT-${r.id}`}</td>
                         <td className="py-3">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${statusColor(
-                              t.status
-                            )}`}
-                          >
-                            {t.status}
-                          </span>
+                          {r.client?.username || r.clientName || "N/A"}
+                        </td>
+                        <td className="py-3">{r.testName || "N/A"}</td>
+                        <td className="py-3 text-gray-500">
+                          {r.date || "N/A"}
                         </td>
                         <td className="py-3">
                           <div className="flex gap-2">
-                            <button className="text-indigo-600 text-sm hover:underline">
+                            <button
+                              className="text-indigo-600 text-sm hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = r.resultFileUrl || r.fileUrl;
+                                if (url) {
+                                  openPreview(
+                                    url,
+                                    r.id,
+                                    r.filename || r.testName
+                                  );
+                                } else {
+                                  alert("No file available for this result");
+                                }
+                              }}
+                            >
                               View
-                            </button>
-                            <button className="text-gray-500 text-sm hover:underline">
-                              Edit
                             </button>
                           </div>
                         </td>
@@ -385,10 +552,10 @@ export default function LabDashboard() {
                     {filtered.length === 0 && (
                       <tr>
                         <td
-                          colSpan="6"
+                          colSpan="5"
                           className="py-6 text-center text-gray-400"
                         >
-                          No tests found
+                          No lab results found
                         </td>
                       </tr>
                     )}
@@ -400,52 +567,158 @@ export default function LabDashboard() {
             {/* Sidebar widgets */}
             <aside className="space-y-4">
               <div className="bg-white rounded border border-gray-100 p-4 shadow-sm">
-                <h3 className="text-sm font-medium mb-2">Quick Actions</h3>
-                <div className="flex flex-col gap-2">
-                  <button className="w-full text-left px-3 py-2 bg-indigo-600 text-white rounded text-sm">
-                    New Test
+                <h3 className="text-sm font-medium mb-3">Quick Actions</h3>
+                <div className="flex flex-col gap-2 text-sm">
+                  <button
+                    className="w-full text-left px-3 py-2 bg-indigo-600 text-white rounded"
+                    onClick={() => navigate("/Upload-Report")}
+                  >
+                    Upload a lab result
                   </button>
-                  <button className="w-full text-left px-3 py-2 border border-gray-200 rounded text-sm">
-                    Upload Results
+                  <button
+                    className="w-full text-left px-3 py-2 border border-gray-200 rounded"
+                    onClick={() => window.location.reload()}
+                  >
+                    Refresh lab results
                   </button>
-                  <button className="w-full text-left px-3 py-2 border border-gray-200 rounded text-sm">
-                    Generate Report
+                  <button
+                    className="w-full text-left px-3 py-2 border border-gray-200 rounded"
+                    onClick={() => navigate("/Lab-Settings")}
+                  >
+                    Go to lab settings
                   </button>
                 </div>
               </div>
 
               <div className="bg-white rounded border border-gray-100 p-4 shadow-sm">
-                <h3 className="text-sm font-medium mb-2">Lab Load</h3>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-semibold">72%</div>
-                    <div className="text-xs text-gray-500">
-                      Capacity used today
+                <h3 className="text-sm font-medium mb-2">Recent results</h3>
+                <div className="space-y-3 text-sm">
+                  {(labResults.slice(0, 3) || []).map((r, idx) => (
+                    <div
+                      key={r.id || idx}
+                      className="flex items-start justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-gray-800">
+                          {r.testName || "Test"}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {r.client?.username ||
+                            r.clientName ||
+                            "Unknown patient"}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {r.date || "—"}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <svg width="48" height="48" viewBox="0 0 36 36">
-                      <path
-                        d="M18 2a16 16 0 1016 16A16 16 0 0018 2zm0 0"
-                        fill="#EEF2FF"
-                      />
-                      <path
-                        d="M18 2a16 16 0 1016 16A16 16 0 0018 2zm0 0"
-                        fill="none"
-                        stroke="#6366F1"
-                        strokeWidth="2"
-                        strokeDasharray="113"
-                        strokeDashoffset={(113 * (100 - 72)) / 100}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
+                  ))}
+                  {labResults.length === 0 && (
+                    <div className="text-xs text-gray-500">
+                      No lab results yet.
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>
           </section>
         </main>
       </div>
+      {preview.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white w-[95vw] max-w-5xl rounded shadow-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div>
+                <div className="font-medium">File Preview</div>
+                {preview.filename && (
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {preview.filename}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={closePreview}
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-0 relative">
+              {preview.loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                    <p className="mt-3 text-gray-600 text-sm">
+                      Loading preview...
+                    </p>
+                  </div>
+                </div>
+              )}
+              {preview.type === "image" && preview.url && (
+                <div className="max-h-[80vh] overflow-auto">
+                  <img
+                    src={preview.url}
+                    alt="Result preview"
+                    className="w-full h-auto object-contain"
+                    onLoad={() =>
+                      setPreview((prev) => ({ ...prev, loading: false }))
+                    }
+                    onError={() =>
+                      setPreview((prev) => ({ ...prev, loading: false }))
+                    }
+                  />
+                </div>
+              )}
+              {preview.type === "pdf" && preview.url && (
+                <iframe
+                  title="PDF preview"
+                  src={getEffectivePreviewUrl(preview.url, preview.type)}
+                  className="w-full h-[80vh]"
+                  onLoad={() =>
+                    setPreview((prev) => ({ ...prev, loading: false }))
+                  }
+                />
+              )}
+              {preview.type === "office" && preview.url && (
+                <iframe
+                  title="Document preview"
+                  src={`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+                    preview.url
+                  )}`}
+                  className="w-full h-[80vh]"
+                  onLoad={() =>
+                    setPreview((prev) => ({ ...prev, loading: false }))
+                  }
+                />
+              )}
+              {preview.type === "unknown" && (
+                <div className="p-6 text-center">
+                  <p className="text-gray-600 mb-4">
+                    Preview not available for this file type.
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <a
+                      href={preview.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-indigo-600 text-white rounded"
+                    >
+                      Open in new tab
+                    </a>
+                    <a
+                      href={preview.url}
+                      download
+                      className="px-4 py-2 border border-gray-300 rounded"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

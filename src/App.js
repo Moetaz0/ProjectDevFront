@@ -1,11 +1,7 @@
 // src/App.js
 import "./App.css";
 import { useState, useEffect } from "react";
-import {
-  Routes,
-  Route,
-  useLocation,
-} from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import PatientRoute from "./Components/PatientRoute";
 import DoctorRoute from "./Components/DoctorRoute";
 import MapPage from "./Components/pages/MapPage";
@@ -22,6 +18,7 @@ import AppointmentForm from "./Components/AppointmentForm ";
 import Prescriptions from "./Components/Patient/Prescriptions";
 import MedicalHistory from "./Components/Patient/MedicalHistory";
 import Settings from "./Components/pages/Settings";
+import NotificationsPage from "./Components/pages/NotificationsPage";
 import PrivacyPolicy from "./Components/legal/PrivacyPolicy";
 import ContactFormApp from "./Components/Patient/ContactFormApp";
 import Step2 from "./Components/auth/Step2";
@@ -35,6 +32,8 @@ import DoctorPatients from "./Components/Doctor/DoctorPatients";
 import LabDashboard from "./Components/Lab/LabDashboard";
 import LabSettings from "./Components/Lab/LabSettings";
 import UploadReport from "./Components/Lab/UploadReport";
+import DoctorPrescriptions from "./Components/Doctor/DoctorPrescriptions";
+import LabRoute from "./Components/LabRoute";
 
 // App.js
 function App() {
@@ -47,9 +46,6 @@ function App() {
   }, []);
 
   // Hide Chatbot only on /messages and /DoctorMessages pages
-  const showChatbot =
-    location.pathname !== "/messages" &&
-    location.pathname !== "/DoctorMessages";
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -96,6 +92,14 @@ function App() {
           }
         />
         <Route
+          path="/notifications"
+          element={
+            <PatientRoute>
+              <NotificationsPage />
+            </PatientRoute>
+          }
+        />
+        <Route
           path="/messages"
           element={
             <PatientRoute>
@@ -104,23 +108,80 @@ function App() {
           }
         />
         <Route
-          path="/doctor-dashboard"
+          path="/doctor/dashboard"
           element={
             <DoctorRoute>
               <Dashboard />
             </DoctorRoute>
           }
         />
-        <Route path="/Doctor-Settings" element={<DoctorSettings />} />
-        <Route path="/Doctor-Messages" element={<DoctorMessages />} />
-        <Route path="/Doctor-Appointments" element={<DoctorAppointments />} />
-        <Route path="/Doctor-Patients" element={<DoctorPatients />} />
-        <Route path="/Lab-Dashboard" element={<LabDashboard />} />
-        <Route path="/Lab-Settings" element={<LabSettings />} />
-        <Route path="/Upload-Report" element={<UploadReport />} />
+        <Route
+          path="/doctor/appointments"
+          element={
+            <DoctorRoute>
+              <DoctorAppointments />
+            </DoctorRoute>
+          }
+        />
+        <Route
+          path="/doctor/patients"
+          element={
+            <DoctorRoute>
+              <DoctorPatients />
+            </DoctorRoute>
+          }
+        />
+        <Route
+          path="/doctor/prescriptions"
+          element={
+            <DoctorRoute>
+              <DoctorPrescriptions />
+            </DoctorRoute>
+          }
+        />
+        <Route
+          path="/doctor/settings"
+          element={
+            <DoctorRoute>
+              <DoctorSettings />
+            </DoctorRoute>
+          }
+        />
+        <Route
+          path="/DoctorMessages"
+          element={
+            <DoctorRoute>
+              <DoctorMessages />
+            </DoctorRoute>
+          }
+        />
+        <Route
+          path="/Lab-Dashboard"
+          element={
+            <LabRoute>
+              <LabDashboard />
+            </LabRoute>
+          }
+        />
+        <Route
+          path="/Lab-Settings"
+          element={
+            <LabRoute>
+              <LabSettings />
+            </LabRoute>
+          }
+        />
+        <Route
+          path="/Upload-Report"
+          element={
+            <LabRoute>
+              <UploadReport />
+            </LabRoute>
+          }
+        />
       </Routes>
 
-      {showChatbot && <Chatbot />}
+      <Chatbot />
       <ScrollToTopButton />
     </>
   );

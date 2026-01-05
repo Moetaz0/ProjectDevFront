@@ -10,9 +10,9 @@ import ErrorToast from "../ErrorToast";
 
 const ModernPrescriptionGrid = () => {
   const [prescriptions, setPrescriptions] = useState([]);
-  const [refillStatus, setRefillStatus] = useState({});
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6); // prescriptions per page
 
@@ -47,45 +47,15 @@ const ModernPrescriptionGrid = () => {
       setLoading(true);
       setError(null);
 
-      const [presResponse, refillRequests] = await Promise.all([
-        api.get(`/prescriptions/patient/${patientId}`, {
+      const presResponse = await api.get(
+        `/prescriptions/patient/${patientId}`,
+        {
           headers: { Authorization: `Bearer ${token}` },
-        }),
-        getAllRefillRequests(patientId),
-      ]);
+        }
+      );
 
       const prescriptionsData = presResponse.data || [];
       setPrescriptions(prescriptionsData);
-
-      // Map refill requests by prescription ID for easy lookup
-      const latestRefills = {};
-      refillRequests.forEach((r) => {
-        // Only keep the latest request per prescription
-        if (
-          !latestRefills[r.prescription.id] ||
-          new Date(r.createdAt) >
-            new Date(latestRefills[r.prescription.id].createdAt)
-        ) {
-          latestRefills[r.prescription.id] = r;
-        }
-      });
-
-      // Set UI refillStatus
-      const initialStatus = {};
-      prescriptionsData.forEach((p) => {
-        const lastRefill = latestRefills[p.id];
-
-        if (p.status === "FULFILLED" || p.status === "APPROVED") {
-          initialStatus[p.id] = "done";
-        } else if (lastRefill) {
-          initialStatus[p.id] =
-            lastRefill.status === "PENDING" ? "pending" : "canRefill";
-        } else {
-          initialStatus[p.id] = "pending";
-        }
-      });
-
-      setRefillStatus(initialStatus);
     } catch (err) {
       setError("Failed to load prescriptions");
       console.error(err);
@@ -97,45 +67,6 @@ const ModernPrescriptionGrid = () => {
   useEffect(() => {
     getPrescriptions();
   }, [patientId]);
-  const getAllRefillRequests = async (patientId) => {
-    try {
-      const response = await api.get(`/prescriptions/refill/${patientId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log(response.data);
-      return response.data;
-    } catch (err) {
-      console.error("Failed to fetch refill data", err);
-      return [];
-    }
-  };
-
-  const requestPrescription = async (id) => {
-    // Prevent multiple requests while pending
-    if (refillStatus[id] === "pending") return;
-
-    setRefillStatus((prev) => ({ ...prev, [id]: "pending" }));
-
-    try {
-      await api.post(
-        `/prescriptions/refill/${id}/${patientId}`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      setSuccessMessage("Prescription refill request sent successfully!");
-      setShowSuccess(true);
-
-      setRefillStatus((prev) => ({ ...prev, [id]: "pending" })); // pending until backend updates
-    } catch (err) {
-      setRefillStatus((prev) => ({ ...prev, [id]: "canRefill" }));
-      setErrorMessage("Failed to request prescription refill.");
-      setShowError(true);
-      console.error(err);
-    }
-  };
 
   // THIS IS THE FIXED FILTER — THE ONLY CHANGE YOU NEED
   // Filtered prescriptions as before
@@ -153,10 +84,23 @@ const ModernPrescriptionGrid = () => {
         .toLowerCase()
         .includes(search.toLowerCase());
 
-    const uiStatus = refillStatus[pres.id] || "pending";
-    const matchesFilter = filter === "all" || uiStatus === filter;
+    const matchesFilter = true;
 
-    return matchesSearch && matchesFilter;
+    // Date filter
+    let matchesDate = true;
+    if (startDate || endDate) {
+      const prescriptionDate = new Date(pres.startDate || pres.createdAt);
+      if (startDate) {
+        matchesDate = matchesDate && prescriptionDate >= new Date(startDate);
+      }
+      if (endDate) {
+        const endDateWithTime = new Date(endDate);
+        endDateWithTime.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && prescriptionDate <= endDateWithTime;
+      }
+    }
+
+    return matchesSearch && matchesFilter && matchesDate;
   });
 
   // Pagination logic
@@ -189,23 +133,21 @@ const ModernPrescriptionGrid = () => {
           My Prescriptions
         </h1>
 
-        {/* Search + Filter */}
+        {/* Search + Date Filter */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
           <input
             type="text"
             placeholder="Search medication or doctor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:w-1/2 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#4addbf]/50"
+            className="w-full md:w-2/5 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#4addbf]/50"
           />
-          <FilterDropdown
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "pending", label: "Can Refill" },
-              { value: "done", label: "Refilled" },
-            ]}
+
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full md:w-1/4 p-4 rounded-2xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-4 focus:ring-[#4addbf]/50"
           />
         </div>
 
@@ -246,32 +188,7 @@ const ModernPrescriptionGrid = () => {
                       {pres.doctor?.username || "Dr. Unknown"}
                     </span>
                   </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Status: {pres.status}
-                  </p>
-
-                  <div className="mt-8 flex justify-between items-center">
-                    <div
-                      className={`w-5 h-5 rounded-full ${
-                        refillStatus[pres.id] === "done"
-                          ? "bg-green-400"
-                          : "bg-yellow-400 animate-pulse"
-                      }`}
-                    />
-                    <button
-                      onClick={() => requestPrescription(pres.id)}
-                      disabled={refillStatus[pres.id] === "pending"} // only disable if last request is pending
-                      className={`px-6 py-3 rounded-full font-bold ${
-                        refillStatus[pres.id] === "pending"
-                          ? "bg-gray-700 cursor-not-allowed"
-                          : "bg-[#4addbf] hover:bg-[#39c6a5]"
-                      } text-gray-900`}
-                    >
-                      {refillStatus[pres.id] === "pending"
-                        ? "Request Pending"
-                        : "Request Refill"}
-                    </button>
-                  </div>
+                  <p className="text-xs text-gray-500 mt-2"></p>
                 </motion.div>
               ))}
             </AnimatePresence>

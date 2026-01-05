@@ -27,7 +27,8 @@ const SignIn = () => {
   useEffect(() => {
     // Already logged in → redirect to home
     if (user?.role === "CLIENT") navigate("/");
-    else if (user?.role === "DOCTOR") navigate("/doctor-dashboard");
+    else if (user?.role === "DOCTOR") navigate("/doctor/dashboard");
+    else if (user?.role === "Labs") navigate("/Lab-Dashboard");
   }, [user, navigate]);
 
   const validateEmail = (e) => {
@@ -56,7 +57,7 @@ const SignIn = () => {
       await login({ email, password });
       if (user?.role === "CLIENT") navigate("/", { replace: true });
       else if (user?.role === "DOCTOR")
-        navigate("/doctor-dashboard", { replace: true });
+        navigate("/doctor/dashboard", { replace: true });
     } catch (err) {
       setError(err.error || "Invalid credentials");
     } finally {
